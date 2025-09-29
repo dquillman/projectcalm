@@ -1,0 +1,53 @@
+{
+  "name": "projectcalm",
+  "version": "1.0.0",
+  "description": "Project Calm desktop app",
+  "main": "electron/main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "node tools/build-esbuild.js",
+    "dev": "node tools/build-esbuild.js --watch",
+    "bump": "node tools/bump-version.js",
+    "electron:dev": "npm run build && electron .",
+    "pack:win": "npm run build && electron-builder -w",
+    "pack:nw": "npm run build && powershell -ExecutionPolicy Bypass -File tools/pack-nw.ps1",
+    "pack:win:portable": "npm run build && electron-packager . \"Project Calm\" --platform=win32 --arch=x64 --out=release --overwrite",
+    "mobile:bundle": "npm run build && node tools/build-mobile.js",
+    "android:add": "npx cap add android",
+    "android:sync": "npm run mobile:bundle && npx cap sync android",
+    "android:open": "npx cap open android"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/cli": "^7.4.3",
+    "@capacitor/core": "^7.4.3",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3",
+    "electron-packager": "^17.1.2",
+    "esbuild": "^0.25.9"
+  },
+  "build": {
+    "appId": "com.projectcalm",
+    "productName": "Project Calm",
+    "files": [
+      "index.html",
+      "dist/**",
+      "vendor/**",
+      "electron/**",
+      "version.txt"
+    ],
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "${productName}-${version}-Setup.${ext}"
+    }
+  }
+}

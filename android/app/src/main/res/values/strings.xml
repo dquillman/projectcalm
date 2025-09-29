@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Project Calm</string>
+    <string name="title_activity_main">Project Calm</string>
+    <string name="package_name">com.projectcalm</string>
+    <string name="custom_url_scheme">com.projectcalm</string>
+</resources>

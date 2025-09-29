@@ -1,0 +1,6 @@
+{
+  "appId": "com.projectcalm",
+  "appName": "Project Calm",
+  "webDir": "mobile/www",
+  "bundledWebRuntime": false
+}

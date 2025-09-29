@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Project Calm (Modern)</title>
+    <meta name="app-version" content="v0.1.93" />
+    <script>
+      (function(){
+        try {
+          function setVersion(v){ if (!v) return; var s = (''+v).trim(); window.__APP_VERSION = /^v/.test(s) ? s : ('v' + s); }
+          var meta = document.querySelector('meta[name="app-version"]');
+          if (meta && meta.content) setVersion(meta.content);
+          if (location.protocol !== 'file:') {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', './version.txt', false);
+            xhr.send(null);
+            if (xhr.status >= 200 && xhr.status < 300) setVersion(xhr.responseText || '');
+          }
+        } catch(e){}
+      })();
+      window.addEventListener('error', function (e) { try { console.error('Runtime error:', e && (e.error || e.message || e)); } catch(_){} }, true);
+      window.addEventListener('unhandledrejection', function (e) { try { console.error('Unhandled rejection:', e && (e.reason || e)); } catch(_){} });
+    </script>
+  </head>
+  <body class="bg-slate-900 text-slate-100">
+    <div id="root" class="min-h-screen p-6">Loading Project Calm...</div>
+
+    <!-- React 18 UMD -->
+    <script src="./vendor/react.production.min.js"></script>
+    <script src="./vendor/react-dom.production.min.js"></script>
+
+    <!-- Tailwind runtime (ensure styles before app) -->
+    <script src="./vendor/tailwindcss.js"></script>
+
+    <!-- App bundle built by esbuild -->
+    <script src="./dist/app.js"></script>
+
+    <!-- Mount -->
+    <script>
+      (function(){
+        var attempts = 0, mounted = false;
+        function mount(){
+          if (mounted) return;
+          var ready = !!(window.React && window.ReactDOM && window.ProjectCalmApp);
+          if (!ready) { if ((attempts++ % 25) === 0) console.log('Mount wait:', {React:!!window.React, ReactDOM:!!window.ReactDOM, App:!!window.ProjectCalmApp, attempts}); return setTimeout(mount, 40); }
+          try {
+            var el = document.getElementById('root');
+            if (!el) return; el.innerHTML='';
+            var root = (window.ReactDOM && window.ReactDOM.createRoot ? window.ReactDOM.createRoot(el) : null);
+            mounted = true;
+            if (root) { root.render(window.React.createElement(window.ProjectCalmApp)); }
+            else { window.ReactDOM.render(window.React.createElement(window.ProjectCalmApp), el); }
+          } catch (e) { console.error(e); }
+        }
+        if (document.readyState === 'complete' || document.readyState === 'interactive') setTimeout(mount, 0); else document.addEventListener('DOMContentLoaded', mount);
+        window.addEventListener('load', function(){ setTimeout(mount, 0); });
+      })();
+    </script>
+  </body>
+  </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

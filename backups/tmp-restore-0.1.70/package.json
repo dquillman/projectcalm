@@ -1,0 +1,20 @@
+{
+    "name":  "projectcalm",
+    "version":  "1.0.0",
+    "description":  "",
+    "main":  "index.js",
+  "scripts":  {
+                    "test":  "echo \"Error: no test specified\" \u0026\u0026 exit 1",
+                    "build":  "node tools/build-esbuild.js",
+                    "dev":  "node tools/build-esbuild.js --watch",
+                    "bump": "node tools/bump-version.js"
+                },
+    "keywords":  [
+
+                 ],
+    "author":  "",
+    "license":  "ISC",
+    "devDependencies":  {
+                            "esbuild":  "^0.25.9"
+                        }
+}

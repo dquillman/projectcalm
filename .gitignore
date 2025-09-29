@@ -1,0 +1,55 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+dist/
+build/
+.cache/
+.vite/
+tmp/
+temp/
+coverage/
+
+# Capacitor
+www/
+
+# Electron
+out/
+electron/dist/
+electron/build/
+*.asar
+
+# Android
+android/.gradle/
+android/local.properties
+android/**/build/
+android/.cxx/
+android/.idea/
+
+# iOS / Xcode
+**/DerivedData/
+**/build/
+*.xcuserdatad/
+*.xcuserdata/
+*.xccheckout
+*.xcscmblueprint
+
+# Environment
+.env
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE/editor
+.vscode/
+.idea/
+*.iml
+
+# Ignore stray dash-named file (accidental)
+-
