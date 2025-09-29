@@ -20,6 +20,22 @@ function updateHtmlMeta(file, newV) {
   if (out !== src) write(file, out);
 }
 
+function updatePackageJsonVersion(newV) {
+  const path = 'package.json';
+  const src = read(path);
+  if (!src) return;
+  try {
+    const pkg = JSON.parse(src);
+    if (pkg.version !== newV) {
+      pkg.version = newV;
+      const out = JSON.stringify(pkg, null, 2) + '\n';
+      write(path, out);
+    }
+  } catch (_) {
+    // ignore JSON parse errors
+  }
+}
+
 function main() {
   const verPath = 'version.txt';
   const cur = (read(verPath) || '').trim();
@@ -28,6 +44,7 @@ function main() {
   write(verPath, next + '\n');
   updateHtmlMeta('index.modern.html', next);
   updateHtmlMeta('index.html', next);
+  updatePackageJsonVersion(next);
   console.log('Version bumped:', cur, '->', next);
 }
 
@@ -37,4 +54,3 @@ if (require.main === module) {
 }
 
 module.exports = {};
-

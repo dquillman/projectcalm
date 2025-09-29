@@ -1,6 +1,6 @@
 {
   "name": "projectcalm",
-  "version": "1.0.0",
+  "version": "0.1.93",
   "description": "Project Calm desktop app",
   "main": "electron/main.js",
   "scripts": {
@@ -18,8 +18,16 @@
     "android:open": "npx cap open android"
   },
   "keywords": [],
-  "author": "",
+  "author": "dquillman",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dquillman/projectcalm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dquillman/projectcalm/issues"
+  },
+  "homepage": "https://github.com/dquillman/projectcalm#readme",
   "devDependencies": {
     "@capacitor/android": "^7.4.3",
     "@capacitor/cli": "^7.4.3",

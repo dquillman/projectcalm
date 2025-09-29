@@ -13,6 +13,7 @@ build/
 tmp/
 temp/
 coverage/
+release/
 
 # Capacitor
 www/
@@ -50,6 +51,9 @@ Thumbs.db
 .vscode/
 .idea/
 *.iml
+
+# Backups
+backups/**/*.zip
 
 # Ignore stray dash-named file (accidental)
 -
