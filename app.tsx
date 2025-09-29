@@ -19,6 +19,8 @@ import { btnBase, btnNeutral, btnPositive, btnSelected, cardBase, cardTone, sele
 import { filterStepsForTab, sortProjects, sortSteps, uid, classNames, formatHours, daysUntilDue, priorityLabel, difficultyLabel, smartExplain, statusLabel } from './lib/utils';
 import { loadProjects, saveProjects, loadSettings, saveSettings, loadTasks, saveTasks } from './lib/storage';
 import { toCSV, parseCSV } from './lib/csv';
+import { pushToGist, pullFromGist } from './lib/gistSync';
+import { loadSyncConfig, saveSyncConfig } from './lib/sync';
 
 function nowIso() { return new Date().toISOString(); }
 
@@ -256,6 +258,15 @@ export function ProjectCalmApp() {
     };
     downloadFile(`projectcalm-export-${new Date().toISOString().slice(0,10)}.json`, 'application/json', JSON.stringify(payload, null, 2));
   }
+  function buildExportPayload() {
+    return {
+      version: (window as any).__APP_VERSION || 'vNext',
+      exportedAt: new Date().toISOString(),
+      projects,
+      tasks,
+      settings: appSettings,
+    };
+  }
   function doImportFromJsonText(text: string) {
     try {
       const parsed = JSON.parse(text);
@@ -398,6 +409,29 @@ export function ProjectCalmApp() {
     const text = window.prompt('Paste CSV here:');
     if (!text) return;
     doImportFromCsvText(text);
+  }
+
+  // --------------- Gist Sync ---------------
+  async function onSyncPush(cfg: { gistToken: string; gistId?: string; public?: boolean }) {
+    const token = (cfg.gistToken || '').trim();
+    if (!token) throw new Error('Gist token is required');
+    const payload = buildExportPayload();
+    const res = await pushToGist(payload, { token, gistId: cfg.gistId, public: cfg.public });
+    saveSyncConfig({ gistToken: token, gistId: res.gistId, public: !!cfg.public });
+    alert(`Pushed to Gist: ${res.url}`);
+    return { gistId: res.gistId };
+  }
+  async function onSyncPull(cfg: { gistToken?: string; gistId: string }) {
+    const data = await pullFromGist({ gistId: cfg.gistId, token: cfg.gistToken });
+    if (!data || typeof data !== 'object') throw new Error('Invalid data in gist');
+    if (!confirm('Import from Gist will replace current Projects and Tasks. Continue?')) return;
+    const nextProjects = Array.isArray(data.projects) ? data.projects as Project[] : [];
+    const nextTasks = Array.isArray(data.tasks) ? data.tasks as Task[] : [];
+    const nextSettings = data.settings as AppSettings | undefined;
+    setProjects(nextProjects);
+    setTasks(nextTasks);
+    if (nextSettings) setAppSettings(nextSettings);
+    alert('Imported data from Gist.');
   }
 
   return (
@@ -735,6 +769,8 @@ export function ProjectCalmApp() {
                   alert('Import failed. ' + (e as Error).message);
                 }
               }}
+              onSyncPush={onSyncPush}
+              onSyncPull={onSyncPull}
             />
           </div>
         </div>

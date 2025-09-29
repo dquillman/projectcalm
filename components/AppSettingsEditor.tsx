@@ -4,6 +4,7 @@ import type { AppSettings, Difficulty, Priority, Status } from '../lib/types';
 import { classNames, priorityLabel, difficultyLabel } from '../lib/utils';
 import { chipTone } from '../lib/styles';
 import { btnBase, btnNeutral } from '../lib/styles';
+import { loadSyncConfig, saveSyncConfig } from '../lib/sync';
 
 export function AppSettingsEditor(props: {
   value: AppSettings;
@@ -17,9 +18,11 @@ export function AppSettingsEditor(props: {
   currentTheme?: 'light'|'dark';
   onToggleTheme?: () => void;
   onImportFromPrevious?: () => void;
+  onSyncPush?: (cfg: { gistToken: string; gistId?: string; public?: boolean }) => Promise<{ gistId?: string } | void>;
+  onSyncPull?: (cfg: { gistToken?: string; gistId: string }) => Promise<void>;
 }) {
-  const { value, onChange, onExport, onImport, onExportCsv, onImportCsv, onImportJsonText, onImportCsvText, currentTheme, onToggleTheme, onImportFromPrevious } = props;
-  const { useState } = React as typeof React;
+  const { value, onChange, onExport, onImport, onExportCsv, onImportCsv, onImportJsonText, onImportCsvText, currentTheme, onToggleTheme, onImportFromPrevious, onSyncPush, onSyncPull } = props;
+  const { useState, useEffect } = React as typeof React;
   const [inhale, setInhale] = useState(value.breathe?.inhale ?? 4);
   const [hold1, setHold1] = useState(value.breathe?.hold1 ?? 4);
   const [exhale, setExhale] = useState(value.breathe?.exhale ?? 4);
@@ -27,6 +30,18 @@ export function AppSettingsEditor(props: {
   const [ui, setUi] = useState(value.ui || { showPriority: true, showDifficulty: true, showDueDate: true, showStatus: true, showEta: true });
   const [stepDefaults, setStepDefaults] = useState(value.defaults?.step || {});
   const [taskDefaults, setTaskDefaults] = useState(value.defaults?.task || {});
+  // Sync settings (persisted via localStorage inside handler)
+  const [gistToken, setGistToken] = useState<string>('');
+  const [gistId, setGistId] = useState<string>('');
+  const [gistPublic, setGistPublic] = useState<boolean>(false);
+  useEffect(() => {
+    try {
+      const cfg = loadSyncConfig();
+      if (cfg.gistToken) setGistToken(cfg.gistToken);
+      if (cfg.gistId) setGistId(cfg.gistId);
+      if (typeof cfg.public === 'boolean') setGistPublic(!!cfg.public);
+    } catch {}
+  }, []);
 
   function save() {
     const b = {
@@ -106,6 +121,48 @@ export function AppSettingsEditor(props: {
           </div>
         </div>
       </div>
+      {onSyncPush || onSyncPull ? (
+        <div className="mt-6">
+          <div className="mb-2 font-semibold">Sync via GitHub Gist</div>
+          <div className="text-xs text-slate-400 mb-2">Stores a JSON export in a GitHub Gist. Use a token with the "gist" scope. Token is saved in this browser/app profile.</div>
+          <div className="grid gap-2" style={{gridTemplateColumns:'12rem 1fr'}}>
+            <label className="flex items-center gap-2">
+              <span className="w-44">Gist Token</span>
+              <input type="password" className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1" value={gistToken} onChange={(e)=>setGistToken((e.target as HTMLInputElement).value)} placeholder="ghp_..." />
+            </label>
+            <label className="flex items-center gap-2">
+              <span className="w-44">Gist ID (optional for first push)</span>
+              <input className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1" value={gistId} onChange={(e)=>setGistId((e.target as HTMLInputElement).value)} placeholder="e.g. a1b2c3..." />
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={gistPublic} onChange={(e)=>setGistPublic(e.currentTarget.checked)} />
+              <span>Create as public (only used on first push)</span>
+            </label>
+          </div>
+          <div className="mt-2 flex gap-2 flex-wrap">
+            {onSyncPush && (
+              <button className={classNames(btnBase, btnNeutral)} onClick={async ()=>{
+                try {
+                  const res = await onSyncPush({ gistToken: gistToken.trim(), gistId: gistId.trim() || undefined, public: gistPublic });
+                  const newId = (res && (res as any).gistId) as string | undefined;
+                  if (newId && newId !== gistId) setGistId(newId);
+                } catch (e) { alert(String((e as Error).message || e)); }
+              }}>Push to Gist</button>
+            )}
+            {onSyncPull && (
+              <button className={classNames(btnBase, btnNeutral)} onClick={async ()=>{
+                try {
+                  if (!gistId.trim()) { alert('Enter a Gist ID to pull from.'); return; }
+                  await onSyncPull({ gistId: gistId.trim(), gistToken: gistToken.trim() || undefined });
+                } catch (e) { alert(String((e as Error).message || e)); }
+              }}>Pull from Gist</button>
+            )}
+            <button className={classNames(btnBase, btnNeutral)} onClick={()=>{
+              try { saveSyncConfig({ gistToken: gistToken.trim() || undefined, gistId: gistId.trim() || undefined, public: gistPublic }); alert('Saved Gist settings.'); } catch (e) { alert(String((e as Error).message || e)); }
+            }}>Save Gist Settings</button>
+          </div>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <button id="settings-save-button" className={classNames(btnBase, btnNeutral)} onClick={save}>Save</button>
         {onToggleTheme && (

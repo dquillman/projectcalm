@@ -1,0 +1,14 @@
+{
+  "ownerId": "tea-d3c9kcadbo4c73e0cb20",
+  "name": "projectcalm",
+  "type": "static_site",
+  "repo": "https://github.com/dquillman/projectcalm",
+  "branch": "main",
+  "autoDeploy": "yes",
+  "serviceDetails": {
+    "staticSiteDetails": {
+      "buildCommand": "npm ci && npm run build",
+      "publishPath": "dist"
+    }
+  }
+}

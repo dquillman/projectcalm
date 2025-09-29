@@ -1,0 +1,6 @@
+{
+  "serviceDetails": {
+    "buildCommand": "npm ci && npm run build",
+    "publishPath": "dist"
+  }
+}
