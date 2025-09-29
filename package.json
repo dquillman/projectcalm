@@ -28,6 +28,9 @@
     "url": "https://github.com/dquillman/projectcalm/issues"
   },
   "homepage": "https://github.com/dquillman/projectcalm#readme",
+  "engines": {
+    "node": "20.x"
+  },
   "devDependencies": {
     "@capacitor/android": "^7.4.3",
     "@capacitor/cli": "^7.4.3",

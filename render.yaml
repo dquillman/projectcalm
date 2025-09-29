@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: projectcalm
+    env: static
+    plan: free
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
