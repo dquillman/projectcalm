@@ -21,6 +21,7 @@ import { loadProjects, saveProjects, loadSettings, saveSettings, loadTasks, save
 import { toCSV, parseCSV } from './lib/csv';
 import { pushToGist, pullFromGist } from './lib/gistSync';
 import { loadSyncConfig, saveSyncConfig } from './lib/sync';
+import { loadCloudSyncConfig, saveCloudSyncConfig, cloudPull, cloudPush, type CloudSyncConfig } from './lib/cloudSync';
 
 function nowIso() { return new Date().toISOString(); }
 
@@ -41,10 +42,28 @@ export function ProjectCalmApp() {
   const [showPlan, setShowPlan] = useState(false);
   const [planSel, setPlanSel] = useState<Map<string, boolean>>(new Map());
   const [focusTarget, setFocusTarget] = useState<{ kind: 'task'; id: ID } | null>(null);
+  const [cloudCfg, setCloudCfg] = useState<CloudSyncConfig>(() => loadCloudSyncConfig());
+  const [cloudBusy, setCloudBusy] = useState(false);
 
   useEffect(() => { saveProjects(projects); }, [projects]);
   useEffect(() => { saveTasks(tasks); }, [tasks]);
   useEffect(() => { saveSettings(appSettings); }, [appSettings]);
+  useEffect(() => { saveCloudSyncConfig(cloudCfg); }, [cloudCfg]);
+  // Default Cloud URL when hosted on Render static site and none set yet
+  useEffect(() => {
+    try {
+      const host = window.location?.hostname || '';
+      const isRender = host.endsWith('onrender.com');
+      if (isRender) {
+        const defUrl = 'https://projectcalm-api.onrender.com';
+        setCloudCfg((cur) => {
+          if (!cur || !cur.serverUrl) return { ...cur, serverUrl: defUrl };
+          return cur;
+        });
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const activeProjects = useMemo(() => projects.filter(p => !p.deletedAt), [projects]);
   const sortedProjects = useMemo(() => sortProjects(activeProjects, sortMode, tab), [activeProjects, sortMode, tab]);
@@ -434,6 +453,87 @@ export function ProjectCalmApp() {
     alert('Imported data from Gist.');
   }
 
+  // --------------- Cloud Sync (Server) ---------------
+  // Pull handler used by Settings buttons
+  async function onCloudPull() {
+    const cfg = loadCloudSyncConfig();
+    if (!cfg.enabled || !cfg.serverUrl || !cfg.syncKey) throw new Error('Cloud Sync not configured');
+    setCloudBusy(true);
+    try {
+      const r = await cloudPull(cfg);
+      if (!r) throw new Error('No response');
+      if (r.data && typeof r.data === 'object') {
+        if (!confirm('Import from Cloud will replace current Projects and Tasks. Continue?')) return;
+        const nextProjects = Array.isArray(r.data.projects) ? r.data.projects as Project[] : [];
+        const nextTasks = Array.isArray(r.data.tasks) ? r.data.tasks as Task[] : [];
+        const nextSettings = r.data.settings as AppSettings | undefined;
+        setProjects(nextProjects);
+        setTasks(nextTasks);
+        if (nextSettings) setAppSettings(nextSettings);
+        setCloudCfg({ ...cfg, lastVersion: r.updatedAt || undefined });
+        alert('Imported data from Cloud.');
+      } else {
+        alert('No cloud data found yet.');
+      }
+    } finally { setCloudBusy(false); }
+  }
+  // Push handler used by Settings buttons
+  async function onCloudPush() {
+    const cfg = loadCloudSyncConfig();
+    if (!cfg.enabled || !cfg.serverUrl || !cfg.syncKey) throw new Error('Cloud Sync not configured');
+    setCloudBusy(true);
+    try {
+      const res = await cloudPush(cfg, buildExportPayload());
+      if (res === 'conflict') {
+        const r = await cloudPull(cfg);
+        if (r && r.data && confirm('Cloud has different data. Overwrite cloud with local? Cancel to keep cloud.')) {
+          const res2 = await cloudPush({ ...cfg, lastVersion: r.updatedAt || undefined }, buildExportPayload());
+          if (res2 !== 'conflict') setCloudCfg({ ...cfg, lastVersion: res2.updatedAt });
+        }
+      } else {
+        setCloudCfg({ ...cfg, lastVersion: res.updatedAt });
+        alert('Pushed to Cloud.');
+      }
+    } finally { setCloudBusy(false); }
+  }
+
+  // Background auto-sync: on mount try pull; on changes push (debounced)
+  useEffect(() => {
+    const cfg = loadCloudSyncConfig();
+    if (!cfg.enabled || !cfg.serverUrl || !cfg.syncKey) return;
+    (async () => {
+      try {
+        const r = await cloudPull(cfg);
+        if (r && r.data && typeof r.data === 'object') {
+          // Simple strategy: if local is empty-ish, adopt cloud; else skip
+          const localCount = projects.length + tasks.length;
+          if (localCount === 0) {
+            const nextProjects = Array.isArray(r.data.projects) ? r.data.projects as Project[] : [];
+            const nextTasks = Array.isArray(r.data.tasks) ? r.data.tasks as Task[] : [];
+            const nextSettings = r.data.settings as AppSettings | undefined;
+            setProjects(nextProjects);
+            setTasks(nextTasks);
+            if (nextSettings) setAppSettings(nextSettings);
+          }
+          setCloudCfg({ ...cfg, lastVersion: r.updatedAt || undefined });
+        }
+      } catch {}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const cfg = loadCloudSyncConfig();
+    if (!cfg.enabled || !cfg.serverUrl || !cfg.syncKey) return;
+    const tm = setTimeout(async () => {
+      try {
+        const res = await cloudPush(cfg, buildExportPayload());
+        if (res !== 'conflict') setCloudCfg({ ...cfg, lastVersion: res.updatedAt });
+      } catch {}
+    }, 1200);
+    return () => clearTimeout(tm);
+  }, [projects, tasks, appSettings]);
+
   return (
     <div className="max-w-5xl mx-auto space-y-4">
       <div className="flex items-center">
@@ -739,7 +839,7 @@ export function ProjectCalmApp() {
                 Close
               </button>
             </div>
-            <AppSettingsEditor
+          <AppSettingsEditor
               value={appSettings}
               currentTheme={theme}
               onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
@@ -771,6 +871,8 @@ export function ProjectCalmApp() {
               }}
               onSyncPush={onSyncPush}
               onSyncPull={onSyncPull}
+              onCloudPush={onCloudPush}
+              onCloudPull={onCloudPull}
             />
           </div>
         </div>

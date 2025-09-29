@@ -1,3 +1,9 @@
+databases:
+  - name: projectcalm-db
+    plan: free
+    databaseName: projectcalm
+    user: projectcalm
+
 services:
   - type: web
     name: projectcalm
@@ -10,3 +16,18 @@ services:
         source: /*
         destination: /index.html
 
+  - type: web
+    name: projectcalm-api
+    env: node
+    plan: free
+    buildCommand: cd server && npm ci
+    startCommand: node server/index.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: projectcalm-db
+          property: internalConnectionString
+      - key: PGSSLMODE
+        value: disable

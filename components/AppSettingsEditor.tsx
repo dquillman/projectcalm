@@ -5,6 +5,7 @@ import { classNames, priorityLabel, difficultyLabel } from '../lib/utils';
 import { chipTone } from '../lib/styles';
 import { btnBase, btnNeutral } from '../lib/styles';
 import { loadSyncConfig, saveSyncConfig } from '../lib/sync';
+import { loadCloudSyncConfig, saveCloudSyncConfig } from '../lib/cloudSync';
 
 export function AppSettingsEditor(props: {
   value: AppSettings;
@@ -20,8 +21,10 @@ export function AppSettingsEditor(props: {
   onImportFromPrevious?: () => void;
   onSyncPush?: (cfg: { gistToken: string; gistId?: string; public?: boolean }) => Promise<{ gistId?: string } | void>;
   onSyncPull?: (cfg: { gistToken?: string; gistId: string }) => Promise<void>;
+  onCloudPush?: () => Promise<void>;
+  onCloudPull?: () => Promise<void>;
 }) {
-  const { value, onChange, onExport, onImport, onExportCsv, onImportCsv, onImportJsonText, onImportCsvText, currentTheme, onToggleTheme, onImportFromPrevious, onSyncPush, onSyncPull } = props;
+  const { value, onChange, onExport, onImport, onExportCsv, onImportCsv, onImportJsonText, onImportCsvText, currentTheme, onToggleTheme, onImportFromPrevious, onSyncPush, onSyncPull, onCloudPush, onCloudPull } = props;
   const { useState, useEffect } = React as typeof React;
   const [inhale, setInhale] = useState(value.breathe?.inhale ?? 4);
   const [hold1, setHold1] = useState(value.breathe?.hold1 ?? 4);
@@ -40,6 +43,19 @@ export function AppSettingsEditor(props: {
       if (cfg.gistToken) setGistToken(cfg.gistToken);
       if (cfg.gistId) setGistId(cfg.gistId);
       if (typeof cfg.public === 'boolean') setGistPublic(!!cfg.public);
+    } catch {}
+  }, []);
+
+  // Cloud Sync (server) settings
+  const [cloudEnabled, setCloudEnabled] = useState(false);
+  const [cloudUrl, setCloudUrl] = useState('');
+  const [cloudKey, setCloudKey] = useState('');
+  useEffect(() => {
+    try {
+      const cfg = loadCloudSyncConfig();
+      setCloudEnabled(!!cfg.enabled);
+      if (cfg.serverUrl) setCloudUrl(cfg.serverUrl);
+      if (cfg.syncKey) setCloudKey(cfg.syncKey);
     } catch {}
   }, []);
 
@@ -196,8 +212,31 @@ export function AppSettingsEditor(props: {
             <button className={classNames(btnBase, btnNeutral)} onClick={onImportFromPrevious} title="Copy data from older Project Calm profile (first-run/dev)">Import From Previous Profile</button>
           </div>
         )}
-      <div className="mt-4 border-t border-slate-700/40 pt-3">
-        <div className="mb-2 font-medium">Legend</div>
+        {/* Cloud Sync section */}
+        <div className="mt-4 border-t border-slate-700/40 pt-3">
+          <div className="mb-2 font-medium">Cloud Sync (Server)</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-200">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={!!cloudEnabled} onChange={(e)=>setCloudEnabled(e.currentTarget.checked)} /> Enable Cloud Sync
+            </label>
+            <span />
+            <label className="flex items-center gap-2">
+              <span className="w-24">Server URL</span>
+              <input type="text" className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1" placeholder="https://projectcalm-api.onrender.com" value={cloudUrl} onChange={(e)=>setCloudUrl((e.target as HTMLInputElement).value)} />
+            </label>
+            <label className="flex items-center gap-2">
+              <span className="w-24">Sync Key</span>
+              <input type="password" className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1" placeholder="your-secret-key" value={cloudKey} onChange={(e)=>setCloudKey((e.target as HTMLInputElement).value)} />
+            </label>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button className={classNames(btnBase, btnNeutral)} onClick={()=>{ try { saveCloudSyncConfig({ enabled: cloudEnabled, serverUrl: cloudUrl.trim(), syncKey: cloudKey.trim() }); alert('Saved Cloud Sync settings.'); } catch (e){ alert(String((e as Error).message || e)); } }}>Save Cloud Settings</button>
+              {onCloudPush && (<button className={classNames(btnBase, btnNeutral)} onClick={async()=>{ try { await onCloudPush(); } catch(e){ alert(String((e as Error).message || e)); } }}>Push Now</button>)}
+              {onCloudPull && (<button className={classNames(btnBase, btnNeutral)} onClick={async()=>{ try { await onCloudPull(); } catch(e){ alert(String((e as Error).message || e)); } }}>Pull Now</button>)}
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 border-t border-slate-700/40 pt-3">
+          <div className="mb-2 font-medium">Legend</div>
         <div className="text-[11px] text-slate-300 space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-slate-400 w-16">Priority</span>
