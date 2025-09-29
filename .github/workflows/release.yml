@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  win-build-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Read version from version.txt
+        id: readver
+        shell: bash
+        run: |
+          VERSION=$(cat version.txt | tr -d '\r' | tr -d '\n')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build Windows installer with electron-builder
+        run: >-
+          npx electron-builder -w
+          --config.extraMetadata.version "${{ steps.readver.outputs.version }}"
+
+      - name: Create GitHub Release and upload artifact
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.readver.outputs.version }}
+          name: Project Calm v${{ steps.readver.outputs.version }}
+          files: |
+            release/*-${{ steps.readver.outputs.version }}-Setup.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
