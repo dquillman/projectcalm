@@ -9,10 +9,21 @@ param(
 )
 
 function Fail($msg){ Write-Error $msg; exit 1 }
+function ErrorBody($err){
+  try {
+    $resp = $err.Exception.Response
+    if ($resp -ne $null) {
+      $sr = New-Object System.IO.StreamReader($resp.GetResponseStream())
+      $txt = $sr.ReadToEnd()
+      if ($txt) { return $txt }
+    }
+  } catch {}
+  return ''
+}
 
 if (-not $Mode) { Fail "-Mode Push|Pull is required" }
 
-$CommonHeaders = @{ 'Accept'='application/vnd.github+json' }
+$CommonHeaders = @{ 'Accept'='application/vnd.github+json'; 'User-Agent'='projectcalm-gist-sync' }
 if ($Token) { $CommonHeaders['Authorization'] = "Bearer $Token" }
 
 if ($Mode -eq 'Push') {
@@ -50,14 +61,16 @@ if ($Mode -eq 'Push') {
     try {
       $res = Invoke-RestMethod -Uri $url -Method Patch -Headers $CommonHeaders -Body $body -ContentType 'application/json'
     } catch {
-      Fail ("Gist update failed: " + $_.Exception.Message)
+      $eb = ErrorBody($_)
+      Fail ("Gist update failed: " + $_.Exception.Message + (if($eb){"`n"+$eb}else{''}))
     }
   } else {
     $url = 'https://api.github.com/gists'
     try {
       $res = Invoke-RestMethod -Uri $url -Method Post -Headers $CommonHeaders -Body $body -ContentType 'application/json'
     } catch {
-      Fail ("Gist create failed: " + $_.Exception.Message)
+      $eb = ErrorBody($_)
+      Fail ("Gist create failed: " + $_.Exception.Message + (if($eb){"`n"+$eb}else{''}))
     }
   }
 
