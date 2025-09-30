@@ -47,7 +47,8 @@ if ($Mode -eq 'Push') {
   if (-not $InputFile) { Fail "-InputFile path to exported JSON is required for Push" }
   if (-not (Test-Path -Path $InputFile)) { Fail "Input file not found: $InputFile" }
 
-  $content = Get-Content -Raw -Path $InputFile
+  # Force a plain .NET string to avoid ETS metadata (PSPath, etc.) in JSON
+  $content = [string](Get-Content -Raw -Path $InputFile)
   if (-not $content) { Fail "Input file is empty: $InputFile" }
 
   $bodyObj = [ordered]@{
