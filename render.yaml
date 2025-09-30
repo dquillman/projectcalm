@@ -8,7 +8,6 @@ services:
   - type: web
     name: projectcalm
     env: static
-    plan: free
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
     routes:
@@ -19,7 +18,7 @@ services:
   - type: web
     name: projectcalm-api
     env: node
-    plan: free
+    plan: starter
     buildCommand: cd server && npm ci
     startCommand: node server/index.js
     healthCheckPath: /health
