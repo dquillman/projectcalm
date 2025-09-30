@@ -1,6 +1,5 @@
 databases:
   - name: projectcalm-db
-    plan: free
     databaseName: projectcalm
     user: projectcalm
 
@@ -18,7 +17,6 @@ services:
   - type: web
     name: projectcalm-api
     env: node
-    plan: starter
     buildCommand: cd server && npm ci
     startCommand: node server/index.js
     healthCheckPath: /health
@@ -28,3 +26,4 @@ services:
         fromDatabase:
           name: projectcalm-db
           property: connectionString
+
