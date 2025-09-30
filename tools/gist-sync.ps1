@@ -16,7 +16,22 @@ $CommonHeaders = @{ 'Accept'='application/vnd.github+json' }
 if ($Token) { $CommonHeaders['Authorization'] = "Bearer $Token" }
 
 if ($Mode -eq 'Push') {
-  if (-not $Token) { Fail "-Token (GitHub token with 'gist' scope) is required for Push" }
+  if (-not $Token) {
+    if ($env:GIST_TOKEN) {
+      $Token = $env:GIST_TOKEN
+      $CommonHeaders['Authorization'] = "Bearer $Token"
+    } else {
+      try {
+        $sec = Read-Host -AsSecureString -Prompt 'Enter GitHub token (gist scope)'
+        $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
+        $Token = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
+        if (-not $Token) { Fail "Token is required for Push" }
+        $CommonHeaders['Authorization'] = "Bearer $Token"
+      } catch {
+        Fail "-Token (GitHub token with 'gist' scope) is required for Push"
+      }
+    }
+  }
   if (-not $InputFile) { Fail "-InputFile path to exported JSON is required for Push" }
   if (-not (Test-Path -Path $InputFile)) { Fail "Input file not found: $InputFile" }
 
@@ -80,4 +95,3 @@ if ($Mode -eq 'Pull') {
 }
 
 Fail "Unknown mode: $Mode"
-
