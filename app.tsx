@@ -606,6 +606,15 @@ export function ProjectCalmApp() {
           ) : null}
         </div>
       </div>
+      {/* Mobile: secondary nav row with big buttons */}
+      <div className="sm:hidden px-2 pt-2">
+        <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap">
+          <button className={classNames('text-base px-3 py-2 rounded border', view==='projects' ? btnSelected : 'border-slate-700 hover:bg-slate-800/30 text-slate-300')} onClick={()=>setView('projects')}>Projects</button>
+          <button className={classNames('text-base px-3 py-2 rounded border', view==='everything' ? btnSelected : 'border-slate-700 hover:bg-slate-800/30 text-slate-300')} onClick={()=>setView('everything')}>Everything</button>
+          <button className={classNames('text-base px-3 py-2 rounded border', view==='steps' ? btnSelected : 'border-slate-700 hover:bg-slate-800/30 text-slate-300')} onClick={()=>setView('steps')}>Steps</button>
+          <button className={classNames('text-base px-3 py-2 rounded border', view==='tasks' ? btnSelected : 'border-slate-700 hover:bg-slate-800/30 text-slate-300')} onClick={()=>setView('tasks')}>Tasks</button>
+        </div>
+      </div>
 
       
 
@@ -693,11 +702,11 @@ export function ProjectCalmApp() {
                       const t = it as unknown as Task;
                       const ui = appSettings.ui;
                       return (
-                        <li key={t.id + '|task:everything'} className="flex items-start justify-between gap-3 rounded-lg border border-slate-700/50 bg-slate-900/30 p-3">
-                          <div className="flex items-start gap-3">
-                            <div>
-                              <div className={classNames('text-sm', t.done ? 'line-through text-slate-500' : 'text-slate-200')} title={smartExplain(t as unknown as Step)}>{t.title}</div>
-                              <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+                        <li key={t.id + '|task:everything'} className="flex items-center justify-between gap-3 rounded-lg border border-slate-700/50 bg-slate-900/30 p-3">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="min-w-0">
+                              <div className={classNames('text-[15px]', t.done ? 'line-through text-slate-500' : 'text-slate-200')} title={smartExplain(t as unknown as Step)}>{t.title}</div>
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-slate-300">
                                 {!t.deletedAt && !t.done && t.today && (<span className={classNames('px-1 rounded', chipTone.ok)}>Today</span>)}
                                 {ui.showStatus && t.status && !t.deletedAt && !t.done && (
                                   <span
@@ -723,7 +732,7 @@ export function ProjectCalmApp() {
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-none shrink-0">
                             {tab !== 'trash' ? (
                               <>
                                 <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', 'border-slate-600')} onClick={() => toggleTaskDone(t.id)}>{t.done ? 'Undo' : 'Done'}</button>
@@ -792,11 +801,11 @@ export function ProjectCalmApp() {
               return (
                 <ul className="space-y-2">
                   {sorted.map((t) => (
-                    <li key={t.id + '|task:tasks'} className="flex items-start justify-between gap-3 rounded-lg border border-slate-700/50 bg-slate-900/30 p-3">
-                      <div className="flex items-start gap-3">
-                        <div>
-                          <div className={classNames('text-sm', t.done ? 'line-through text-slate-500' : 'text-slate-200')} title={smartExplain(t as unknown as Step)}>{t.title}</div>
-                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+                    <li key={t.id + '|task:tasks'} className="flex items-center justify-between gap-3 rounded-lg border border-slate-700/50 bg-slate-900/30 p-3">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="min-w-0">
+                          <div className={classNames('text-[15px]', t.done ? 'line-through text-slate-500' : 'text-slate-200')} title={smartExplain(t as unknown as Step)}>{t.title}</div>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-slate-300">
                             {!t.deletedAt && !t.done && t.today && (<span className={classNames('px-1 rounded', chipTone.ok)}>Today</span>)}
                             {appSettings.ui.showStatus && t.status && !t.deletedAt && !t.done && (
                               <span
@@ -822,7 +831,7 @@ export function ProjectCalmApp() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-none shrink-0">
                         {tab !== 'trash' ? (
                           <>
                             <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', 'border-slate-600')} onClick={() => toggleTaskDone(t.id)}>{t.done ? 'Undo' : 'Done'}</button>

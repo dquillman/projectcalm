@@ -20,13 +20,13 @@ export function StepItem(props: {
   const { projectId, step: s, tab } = props;
   const ui = props.ui || { showPriority: true, showDifficulty: true, showDueDate: true, showStatus: true, showEta: true };
   return (
-    <li className={classNames('flex items-start justify-between gap-3 rounded-lg border p-3', listItemTone)}>
-      <div className="flex items-start gap-3">
-        <div>
+    <li className={classNames('flex items-center justify-between gap-3 rounded-lg border p-3', listItemTone)}>
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        <div className="min-w-0">
           <div className={classNames('text-sm', s.done ? 'line-through text-slate-500' : 'text-slate-200')} title={smartExplain(s)}>
             {props.titlePrefix ? props.titlePrefix + ': ' : ''}{s.title}
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-slate-300">
             {!s.deletedAt && !s.done && s.today && (
               <span className={classNames('px-1 rounded', chipTone.ok)}>Today</span>
             )}
@@ -75,7 +75,7 @@ export function StepItem(props: {
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-none shrink-0">
         {tab !== 'trash' ? (
           <>
             <button
