@@ -1,6 +1,6 @@
 {
   "name": "projectcalm",
-  "version": "0.1.94",
+  "version": "0.1.95",
   "description": "Project Calm desktop app",
   "main": "electron/main.js",
   "scripts": {
