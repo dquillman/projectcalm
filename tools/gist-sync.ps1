@@ -62,7 +62,9 @@ if ($Mode -eq 'Push') {
       $res = Invoke-RestMethod -Uri $url -Method Patch -Headers $CommonHeaders -Body $body -ContentType 'application/json'
     } catch {
       $eb = ErrorBody($_)
-      Fail ("Gist update failed: " + $_.Exception.Message + (if($eb){"`n"+$eb}else{''}))
+      $extra = ''
+      if ($eb) { $extra = "`n$eb" }
+      Fail ("Gist update failed: " + $_.Exception.Message + $extra)
     }
   } else {
     $url = 'https://api.github.com/gists'
@@ -70,10 +72,13 @@ if ($Mode -eq 'Push') {
       $res = Invoke-RestMethod -Uri $url -Method Post -Headers $CommonHeaders -Body $body -ContentType 'application/json'
     } catch {
       $eb = ErrorBody($_)
-      Fail ("Gist create failed: " + $_.Exception.Message + (if($eb){"`n"+$eb}else{''}))
+      $extra = ''
+      if ($eb) { $extra = "`n$eb" }
+      Fail ("Gist create failed: " + $_.Exception.Message + $extra)
     }
   }
 
+  if (-not $res -or -not $res.id) { Fail "GitHub returned an unexpected response" }
   $outId = $res.id
   $outUrl = $res.html_url
   Write-Host "OK: Gist ID = $outId"
