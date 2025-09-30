@@ -1,4 +1,4 @@
-﻿/* @jsxRuntime classic */
+/* @jsxRuntime classic */
 /* @jsx React.createElement */
 // Using global React in a standalone UMD build.
 // Defines window.ProjectCalmApp so index.html can mount it.
@@ -497,6 +497,26 @@ export function ProjectCalmApp() {
     } finally { setCloudBusy(false); }
   }
 
+  // --------------- Quick Sync Button ---------------
+  // Cloud first (if configured), otherwise Gist (requires token)
+  async function syncNow() {
+    try {
+      const cloud = loadCloudSyncConfig();
+      if (cloud && cloud.enabled && cloud.serverUrl && cloud.syncKey) {
+        await onCloudPush();
+        return;
+      }
+      const gist = loadSyncConfig();
+      if (gist && gist.gistToken) {
+        await onSyncPush({ gistToken: gist.gistToken, gistId: gist.gistId, public: gist.public });
+        return;
+      }
+      alert('Set up Cloud Sync or Gist in Settings to use Sync Now.');
+    } catch (e) {
+      alert(String((e as Error).message || e));
+    }
+  }
+
   // Background auto-sync: on mount try pull; on changes push (debounced)
   useEffect(() => {
     const cfg = loadCloudSyncConfig();
@@ -536,19 +556,19 @@ export function ProjectCalmApp() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
-      <div className="flex items-center">
+      <div className="flex items-center sticky top-0 z-10 bg-slate-950/80 backdrop-blur px-2 py-2">
         {/* Left: title */}
         <div className="flex items-center gap-2">
           <div className={classNames('text-lg font-semibold', strongText)}>Project Calm</div>
           <div className={classNames('text-xs', subtleText)} title="Version">{(window as any).__APP_VERSION || 'vNext'}</div>
         </div>
         {/* Center: view buttons */}
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center overflow-x-auto">
           <div className="flex items-center gap-1">
-            <button className={classNames('text-xs px-2 py-1 rounded border', view==='projects' ? btnSelected : 'border-slate-700 hover:bg-slate-800/30 text-slate-300')} onClick={()=>setView('projects')}>Projects</button>
-            <button className={classNames('text-xs px-2 py-1 rounded border', view==='everything' ? btnSelected : 'border-slate-700 hover:bg-slate-800/30 text-slate-300')} onClick={()=>setView('everything')}>Everything</button>
-            <button className={classNames('text-xs px-2 py-1 rounded border', view==='steps' ? btnSelected : 'border-slate-700 hover:bg-slate-800/30 text-slate-300')} onClick={()=>setView('steps')}>Steps</button>
-            <button className={classNames('text-xs px-2 py-1 rounded border', view==='tasks' ? btnSelected : 'border-slate-700 hover:bg-slate-800/30 text-slate-300')} onClick={()=>setView('tasks')}>Tasks</button>
+            <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', view==='projects' ? btnSelected : 'border-slate-700 hover:bg-slate-800/30 text-slate-300')} onClick={()=>setView('projects')}>Projects</button>
+            <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', view==='everything' ? btnSelected : 'border-slate-700 hover:bg-slate-800/30 text-slate-300')} onClick={()=>setView('everything')}>Everything</button>
+            <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', view==='steps' ? btnSelected : 'border-slate-700 hover:bg-slate-800/30 text-slate-300')} onClick={()=>setView('steps')}>Steps</button>
+            <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', view==='tasks' ? btnSelected : 'border-slate-700 hover:bg-slate-800/30 text-slate-300')} onClick={()=>setView('tasks')}>Tasks</button>
           </div>
         </div>
         {/* Right: actions */}
@@ -582,7 +602,7 @@ export function ProjectCalmApp() {
         <div className="p-3 flex items-center justify-between border-b border-slate-700/40">
           <div className="flex items-center gap-2">
             {(['all','today','plan','done','trash'] as Tab[]).map(t => (
-              <button key={t} className={classNames('text-xs px-2 py-1 rounded border', t===tab ? btnSelected : 'border-slate-700 hover:bg-slate-800/30 text-slate-300')} onClick={() => setTab(t)}>
+              <button key={t} className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', t===tab ? btnSelected : 'border-slate-700 hover:bg-slate-800/30 text-slate-300')} onClick={() => setTab(t)}>
                 {t === 'plan' ? 'To Do' : (t.charAt(0).toUpperCase()+t.slice(1))}
               </button>
             ))}
@@ -695,20 +715,20 @@ export function ProjectCalmApp() {
                           <div className="flex items-center gap-2">
                             {tab !== 'trash' ? (
                               <>
-                                <button className={classNames('text-xs px-2 py-1 rounded border', 'border-slate-600')} onClick={() => toggleTaskDone(t.id)}>{t.done ? 'Undo' : 'Done'}</button>
+                                <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', 'border-slate-600')} onClick={() => toggleTaskDone(t.id)}>{t.done ? 'Undo' : 'Done'}</button>
                                 {!t.done && (
-                                  <button className={classNames('text-xs px-2 py-1 rounded border', 'border-slate-600')} onClick={() => toggleTaskToday(t.id)}>
+                                  <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', 'border-slate-600')} onClick={() => toggleTaskToday(t.id)}>
                                     {t.today ? 'Untoday' : 'Today'}
                                   </button>
                                 )}
-                                <button className={classNames('text-xs px-2 py-1 rounded border', 'border-slate-600')} onClick={() => setEditingTaskId(t.id)}>Edit</button>
-                                <button className={classNames('text-xs px-2 py-1 rounded border', 'border-slate-600')} onClick={() => { setFocusTarget({ kind:'task', id: t.id }); setView('focus'); }}>Focus</button>
-                                <button className={classNames('text-xs px-2 py-1 rounded border', 'border-rose-600 text-rose-300 hover:bg-rose-900/30')} onClick={() => softDeleteTask(t.id)}>Delete</button>
+                                <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', 'border-slate-600')} onClick={() => setEditingTaskId(t.id)}>Edit</button>
+                                <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', 'border-slate-600')} onClick={() => { setFocusTarget({ kind:'task', id: t.id }); setView('focus'); }}>Focus</button>
+                                <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', 'border-rose-600 text-rose-300 hover:bg-rose-900/30')} onClick={() => softDeleteTask(t.id)}>Delete</button>
                               </>
                             ) : (
                               <>
-                                <button className={classNames('text-xs px-2 py-1 rounded border', 'border-slate-600')} onClick={() => restoreTask(t.id)}>Restore</button>
-                                <button className={classNames('text-xs px-2 py-1 rounded border', 'border-rose-600 text-rose-300 hover:bg-rose-900/30')} onClick={() => purgeTask(t.id)}>Purge</button>
+                                <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', 'border-slate-600')} onClick={() => restoreTask(t.id)}>Restore</button>
+                                <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', 'border-rose-600 text-rose-300 hover:bg-rose-900/30')} onClick={() => purgeTask(t.id)}>Purge</button>
                               </>
                             )}
                           </div>
@@ -794,20 +814,20 @@ export function ProjectCalmApp() {
                       <div className="flex items-center gap-2">
                         {tab !== 'trash' ? (
                           <>
-                            <button className={classNames('text-xs px-2 py-1 rounded border', 'border-slate-600')} onClick={() => toggleTaskDone(t.id)}>{t.done ? 'Undo' : 'Done'}</button>
+                            <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', 'border-slate-600')} onClick={() => toggleTaskDone(t.id)}>{t.done ? 'Undo' : 'Done'}</button>
                             {!t.done && (
-                              <button className={classNames('text-xs px-2 py-1 rounded border', 'border-slate-600')} onClick={() => toggleTaskToday(t.id)}>
+                              <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', 'border-slate-600')} onClick={() => toggleTaskToday(t.id)}>
                                 {t.today ? 'Untoday' : 'Today'}
                               </button>
                             )}
-                            <button className={classNames('text-xs px-2 py-1 rounded border', 'border-slate-600')} onClick={() => setEditingTaskId(t.id)}>Edit</button>
-                                <button className={classNames('text-xs px-2 py-1 rounded border', 'border-slate-600')} onClick={() => { setFocusTarget({ kind:'task', id: t.id }); setView('focus'); }}>Focus</button>
-                            <button className={classNames('text-xs px-2 py-1 rounded border', 'border-rose-600 text-rose-300 hover:bg-rose-900/30')} onClick={() => softDeleteTask(t.id)}>Delete</button>
+                            <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', 'border-slate-600')} onClick={() => setEditingTaskId(t.id)}>Edit</button>
+                                <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', 'border-slate-600')} onClick={() => { setFocusTarget({ kind:'task', id: t.id }); setView('focus'); }}>Focus</button>
+                            <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', 'border-rose-600 text-rose-300 hover:bg-rose-900/30')} onClick={() => softDeleteTask(t.id)}>Delete</button>
                           </>
                         ) : (
                           <>
-                            <button className={classNames('text-xs px-2 py-1 rounded border', 'border-slate-600')} onClick={() => restoreTask(t.id)}>Restore</button>
-                            <button className={classNames('text-xs px-2 py-1 rounded border', 'border-rose-600 text-rose-300 hover:bg-rose-900/30')} onClick={() => purgeTask(t.id)}>Purge</button>
+                            <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', 'border-slate-600')} onClick={() => restoreTask(t.id)}>Restore</button>
+                            <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', 'border-rose-600 text-rose-300 hover:bg-rose-900/30')} onClick={() => purgeTask(t.id)}>Purge</button>
                           </>
                         )}
                       </div>
@@ -827,7 +847,7 @@ export function ProjectCalmApp() {
             <div className="mb-3 flex items-center justify-between">
               <div className="font-semibold">Settings</div>
               <button
-                className={classNames('text-xs px-2 py-1 rounded border', 'border-slate-600')}
+                className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', 'border-slate-600')}
                 onClick={() => {
                   try {
                     const btn = document.getElementById('settings-save-button') as HTMLButtonElement | null;
@@ -893,18 +913,18 @@ export function ProjectCalmApp() {
           <div className={classNames('relative w-full max-w-sm mx-4 p-4', 'rounded-xl border border-slate-700/50 bg-slate-800/40')}>
             <div className="mb-3 flex items-center justify-between">
               <div className="font-semibold">Box Breathing</div>
-              <button className={classNames('text-xs px-2 py-1 rounded border', 'border-slate-600')} onClick={() => setShowBreathe(false)}>Close</button>
+              <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', 'border-slate-600')} onClick={() => setShowBreathe(false)}>Close</button>
             </div>
             <BreatheGuide key={`${appSettings.breathe.inhale}-${appSettings.breathe.hold1}-${appSettings.breathe.exhale}-${appSettings.breathe.hold2}`} config={appSettings.breathe} />
             <div className="mt-4 flex justify-between">
               <button
-                className={classNames('text-xs px-2 py-1 rounded border', 'border-slate-600')}
+                className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', 'border-slate-600')}
                 onClick={() => { setShowSettings(true); }}
                 title="Adjust inhale/hold/exhale times"
               >
                 Settings
               </button>
-              <button className={classNames('text-xs px-2 py-1 rounded border', 'border-slate-600')} onClick={() => setShowBreathe(false)}>Done</button>
+              <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', 'border-slate-600')} onClick={() => setShowBreathe(false)}>Done</button>
             </div>
           </div>
         </div>
