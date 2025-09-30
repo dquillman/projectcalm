@@ -1,0 +1,13 @@
+{
+  "watch": [
+    "dist/app.js",
+    "index.html",
+    "electron/main.js",
+    "electron/preload.js"
+  ],
+  "ext": "js,html,ts,tsx",
+  "exec": "electron .",
+  "signal": "SIGTERM",
+  "restartable": "rs"
+}
+

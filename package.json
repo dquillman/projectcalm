@@ -7,6 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "node tools/build-esbuild.js",
     "dev": "node tools/build-esbuild.js --watch",
+    "dev:app": "concurrently -k -n build,app -c green,yellow \"node tools/build-esbuild.js --watch\" \"nodemon\"",
     "bump": "node tools/bump-version.js",
     "electron:dev": "npm run build && electron .",
     "pack:win": "npm run build && electron-builder -w",
@@ -35,10 +36,12 @@
     "@capacitor/android": "^7.4.3",
     "@capacitor/cli": "^7.4.3",
     "@capacitor/core": "^7.4.3",
+    "concurrently": "^8.2.2",
     "electron": "^31.0.0",
     "electron-builder": "^24.13.3",
     "electron-packager": "^17.1.2",
-    "esbuild": "^0.25.9"
+    "esbuild": "^0.25.9",
+    "nodemon": "^3.1.10"
   },
   "build": {
     "appId": "com.projectcalm",
