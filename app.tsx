@@ -556,14 +556,14 @@ export function ProjectCalmApp() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
-      <div className="flex items-center sticky top-0 z-10 bg-slate-950/80 backdrop-blur px-2 py-2">
+      <div className="flex items-center sticky top-0 z-10 bg-slate-950/80 backdrop-blur px-2 py-2 border-b border-slate-800/60">
         {/* Left: title */}
         <div className="flex items-center gap-2">
           <div className={classNames('text-lg font-semibold', strongText)}>Project Calm</div>
           <div className={classNames('text-xs', subtleText)} title="Version">{(window as any).__APP_VERSION || 'vNext'}</div>
         </div>
         {/* Center: view buttons */}
-        <div className="flex-1 flex items-center justify-center overflow-x-auto">
+        <div className="flex flex-1 items-center justify-center overflow-x-auto">
           <div className="flex items-center gap-1">
             <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', view==='projects' ? btnSelected : 'border-slate-700 hover:bg-slate-800/30 text-slate-300')} onClick={()=>setView('projects')}>Projects</button>
             <button className={classNames('sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border', view==='everything' ? btnSelected : 'border-slate-700 hover:bg-slate-800/30 text-slate-300')} onClick={()=>setView('everything')}>Everything</button>
@@ -597,6 +597,8 @@ export function ProjectCalmApp() {
           ) : null}
         </div>
       </div>
+
+      
 
       <div className={classNames(cardBase, cardTone)}>
         <div className="p-3 flex items-center justify-between border-b border-slate-700/40">
