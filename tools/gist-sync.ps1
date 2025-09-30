@@ -11,6 +11,7 @@ param(
 function Fail($msg){ Write-Error $msg; exit 1 }
 function ErrorBody($err){
   try {
+    if ($err.ErrorDetails -and $err.ErrorDetails.Message) { return $err.ErrorDetails.Message }
     $resp = $err.Exception.Response
     if ($resp -ne $null) {
       $sr = New-Object System.IO.StreamReader($resp.GetResponseStream())
