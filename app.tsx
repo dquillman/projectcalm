@@ -573,8 +573,17 @@ export function ProjectCalmApp() {
         </div>
         {/* Right: actions */}
         <div className="flex items-center gap-2">
-          <button className={classNames(btnBase, btnNeutral)} onClick={() => setShowPlan(true)}>Plan</button>
-          <button className={classNames(btnBase, btnNeutral)} onClick={() => setShowBreathe(true)}>Breathe</button>
+          <select className={classNames('sm:hidden text-xs px-2 py-1 rounded border border-slate-700 bg-slate-900 text-slate-200')}
+            value={view}
+            onChange={(e)=>setView((e.target as HTMLSelectElement).value as View)}
+            title="Change view">
+            <option value="projects">Projects</option>
+            <option value="everything">Everything</option>
+            <option value="steps">Steps</option>
+            <option value="tasks">Tasks</option>
+          </select>
+          <button className={classNames(btnBase, btnNeutral, 'hidden sm:inline-flex')} onClick={() => setShowPlan(true)}>Plan</button>
+          <button className={classNames(btnBase, btnNeutral, 'hidden sm:inline-flex')} onClick={() => setShowBreathe(true)}>Breathe</button>
           <button className={classNames(btnBase, btnNeutral)} onClick={() => setShowSettings(true)}>Settings</button>
           {view === 'focus' ? (
             (() => {
