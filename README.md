@@ -5,6 +5,8 @@ Lightweight desktop app built with Electron + web UI. Includes CI for builds and
 ![CI](https://github.com/dquillman/projectcalm/actions/workflows/ci.yml/badge.svg)
 ![Release](https://img.shields.io/github/v/release/dquillman/projectcalm?include_prereleases&sort=semver)
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/dquillman/projectcalm)
+
 ## Getting Started
 - Prereqs: Node 20+, npm, Git
 - Install: `npm ci`
