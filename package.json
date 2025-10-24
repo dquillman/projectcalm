@@ -44,7 +44,7 @@
     "@typescript-eslint/parser": "^8.45.0",
     "concurrently": "^8.2.2",
     "electron": "^31.0.0",
-    "electron-builder": "^24.13.3",
+    "electron-builder": "^26.0.12",
     "electron-packager": "^17.1.2",
     "esbuild": "^0.25.9",
     "eslint": "^9.36.0",
