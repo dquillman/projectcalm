@@ -20,7 +20,6 @@ import { EditItemModal } from './components/EditItemModal';
 import { PlanModal, type PlanCandidate } from './components/PlanModal';
 import { FocusPane } from './components/FocusPane';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { ToastContainer } from './components/Toast';
 import { Button } from './components/Button';
 import { ProjectsView } from './components/views/ProjectsView';
 import { EverythingView } from './components/views/EverythingView';
@@ -183,8 +182,6 @@ export function ProjectCalmApp() {
   return (
     <ErrorBoundary>
       <div className="max-w-5xl mx-auto space-y-4">
-        <ToastContainer />
-
         {/* Header */}
         <div className="flex items-center sticky top-0 z-10 bg-slate-950/80 backdrop-blur px-2 py-2 border-b border-slate-800/60">
           {/* Left: title */}
