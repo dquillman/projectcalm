@@ -64,14 +64,35 @@ async function main() {
     await copyDir(src, path.join(outWWW, dir));
   }
 
-  // Basic sanity check
-  if (!(await exists(path.join(outMobile, 'index.html')))) {
-    throw new Error('mobile/www/index.html missing');
+  // Basic sanity check with verbose logging
+  console.log('Verifying build output...');
+
+  const indexMobile = path.join(outMobile, 'index.html');
+  const appMobile = path.join(outMobile, 'dist', 'app.js');
+  const indexWWW = path.join(outWWW, 'index.html');
+  const appWWW = path.join(outWWW, 'dist', 'app.js');
+
+  if (!(await exists(indexMobile))) {
+    throw new Error('❌ mobile/www/index.html missing');
   }
-  if (!(await exists(path.join(outMobile, 'dist', 'app.js')))) {
-    throw new Error('mobile/www/dist/app.js missing — build may have failed');
+  console.log('✓ mobile/www/index.html exists');
+
+  if (!(await exists(appMobile))) {
+    throw new Error('❌ mobile/www/dist/app.js missing — build may have failed');
   }
-  console.log('Prepared mobile web assets at', outMobile, 'and', outWWW);
+  console.log('✓ mobile/www/dist/app.js exists');
+
+  if (!(await exists(indexWWW))) {
+    throw new Error('❌ www/index.html missing');
+  }
+  console.log('✓ www/index.html exists');
+
+  if (!(await exists(appWWW))) {
+    throw new Error('❌ www/dist/app.js missing');
+  }
+  console.log('✓ www/dist/app.js exists');
+
+  console.log('✅ Prepared mobile web assets at', outMobile, 'and', outWWW);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
