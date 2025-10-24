@@ -4,10 +4,11 @@
 // Defines window.ProjectCalmApp so index.html can mount it.
 
 // Grab hooks from global React injected by index.html
-const { useEffect, useMemo } = React as typeof React;
+const { useEffect, useMemo, useState } = React as typeof React;
 
 import type { ID, Project, SortMode, Step, Tab } from './lib/types';
 import { useTheme } from './hooks/useTheme';
+import { setStorageErrorCallback, getStorageQuota } from './lib/storage';
 import { useProjectsState } from './hooks/useProjectsState';
 import { useTasksState } from './hooks/useTasksState';
 import { useViewState } from './hooks/useViewState';
@@ -31,6 +32,25 @@ import { filterStepsForTab, sortProjects, sortSteps, classNames } from './lib/ut
 type View = 'projects' | 'everything' | 'steps' | 'tasks' | 'focus';
 
 export function ProjectCalmApp() {
+  // Storage error handling
+  const [storageError, setStorageError] = useState<string | null>(null);
+  const [storageQuota, setStorageQuota] = useState<{ used: number; available: number; percentage: number } | null>(null);
+
+  // Set up storage error callback
+  useEffect(() => {
+    setStorageErrorCallback((error) => {
+      setStorageError(error.message);
+    });
+
+    // Check storage quota on mount
+    getStorageQuota().then((quota) => {
+      setStorageQuota(quota);
+      if (quota && quota.percentage > 90) {
+        setStorageError(`Storage is ${quota.percentage.toFixed(0)}% full. Please export and clear old data.`);
+      }
+    });
+  }, []);
+
   // Theme
   const [theme, setTheme] = useTheme();
 
@@ -182,6 +202,35 @@ export function ProjectCalmApp() {
   return (
     <ErrorBoundary>
       <div className="max-w-5xl mx-auto space-y-4">
+        {/* Storage Error Banner */}
+        {storageError && (
+          <div className="sticky top-0 z-50 bg-rose-900/90 border-l-4 border-rose-500 text-rose-100 px-4 py-3 rounded backdrop-blur">
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+              <div className="flex-1">
+                <p className="font-medium">Storage Error</p>
+                <p className="text-sm mt-1">{storageError}</p>
+                {storageQuota && (
+                  <p className="text-xs mt-1 opacity-90">
+                    Using {(storageQuota.used / 1024 / 1024).toFixed(1)} MB of {(storageQuota.available / 1024 / 1024).toFixed(1)} MB
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setStorageError(null)}
+                className="text-rose-200 hover:text-rose-50 transition-colors"
+                aria-label="Dismiss error"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center sticky top-0 z-10 bg-slate-950/80 backdrop-blur px-2 py-2 border-b border-slate-800/60">
           {/* Left: title */}

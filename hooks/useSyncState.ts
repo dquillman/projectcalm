@@ -28,6 +28,7 @@ interface SyncCallbacks {
 export function useSyncState(callbacks: SyncCallbacks, projects: Project[], tasks: Task[]) {
   const [cloudCfg, setCloudCfg] = useState<CloudSyncConfig>(() => loadCloudSyncConfig());
   const [cloudBusy, setCloudBusy] = useState(false);
+  const [syncInProgress, setSyncInProgress] = useState(false);
 
   // Auto-save cloud config whenever it changes
   useEffect(() => {
@@ -77,12 +78,16 @@ export function useSyncState(callbacks: SyncCallbacks, projects: Project[], task
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-push on data changes (debounced)
+  // Auto-push on data changes (debounced with race condition protection)
   useEffect(() => {
     const cfg = loadCloudSyncConfig();
     if (!cfg.enabled || !cfg.serverUrl || !cfg.syncKey) return;
 
     const handle = setTimeout(async () => {
+      // Prevent concurrent syncs
+      if (syncInProgress) return;
+
+      setSyncInProgress(true);
       try {
         const res = await cloudPush(cfg, callbacks.buildExportPayload());
         if (res !== 'conflict') {
@@ -90,6 +95,8 @@ export function useSyncState(callbacks: SyncCallbacks, projects: Project[], task
         }
       } catch (e) {
         console.error('Auto-sync push failed:', e);
+      } finally {
+        setSyncInProgress(false);
       }
     }, 1500);
 

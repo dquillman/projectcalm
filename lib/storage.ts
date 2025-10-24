@@ -4,6 +4,83 @@ export const PROJECTS_KEY = 'projectcalm:projects';
 export const TASKS_KEY = 'projectcalm:tasks';
 export const SETTINGS_KEY = 'projectcalm:settings';
 
+// Storage error handling and quota management
+let lastQuotaWarning = 0;
+const QUOTA_WARNING_INTERVAL = 5 * 60 * 1000; // 5 minutes between warnings
+
+export interface StorageError {
+  type: 'quota_exceeded' | 'storage_disabled' | 'unknown';
+  message: string;
+  canRetry: boolean;
+}
+
+export type StorageErrorCallback = (error: StorageError) => void;
+
+let errorCallback: StorageErrorCallback | null = null;
+
+export function setStorageErrorCallback(callback: StorageErrorCallback) {
+  errorCallback = callback;
+}
+
+function handleStorageError(error: unknown, operation: string): void {
+  console.error(`Storage ${operation} failed:`, error);
+
+  if (!errorCallback) return;
+
+  if (error instanceof Error) {
+    if (error.name === 'QuotaExceededError') {
+      const now = Date.now();
+      if (now - lastQuotaWarning < QUOTA_WARNING_INTERVAL) return; // Throttle warnings
+      lastQuotaWarning = now;
+
+      errorCallback({
+        type: 'quota_exceeded',
+        message: 'Storage quota exceeded. Please export your data and clear old items.',
+        canRetry: false,
+      });
+    } else if (error.message.includes('localStorage is not available')) {
+      errorCallback({
+        type: 'storage_disabled',
+        message: 'Browser storage is disabled. Please enable cookies and site data.',
+        canRetry: false,
+      });
+    } else {
+      errorCallback({
+        type: 'unknown',
+        message: `Failed to ${operation}: ${error.message}`,
+        canRetry: true,
+      });
+    }
+  }
+}
+
+export function checkStorageQuota(): { used: number; available: number; percentage: number } | null {
+  if (!navigator.storage || !navigator.storage.estimate) {
+    return null;
+  }
+
+  // Return estimate (async operation, caller should await)
+  return null; // Sync version not available
+}
+
+export async function getStorageQuota(): Promise<{ used: number; available: number; percentage: number } | null> {
+  if (!navigator.storage || !navigator.storage.estimate) {
+    return null;
+  }
+
+  try {
+    const estimate = await navigator.storage.estimate();
+    const used = estimate.usage || 0;
+    const available = estimate.quota || 0;
+    const percentage = available > 0 ? (used / available) * 100 : 0;
+
+    return { used, available, percentage };
+  } catch (e) {
+    console.error('Failed to estimate storage quota:', e);
+    return null;
+  }
+}
+
 export function loadProjects(): Project[] {
   try {
     const raw = localStorage.getItem(PROJECTS_KEY);
@@ -23,10 +100,14 @@ export function loadProjects(): Project[] {
   return [];
 }
 
-export function saveProjects(projects: Project[]) {
+export function saveProjects(projects: Project[]): boolean {
   try {
     localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
-  } catch (_) {}
+    return true;
+  } catch (e) {
+    handleStorageError(e, 'save projects');
+    return false;
+  }
 }
 
 export function loadTasks(): Task[] {
@@ -39,10 +120,14 @@ export function loadTasks(): Task[] {
   return [];
 }
 
-export function saveTasks(tasks: Task[]) {
+export function saveTasks(tasks: Task[]): boolean {
   try {
     localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
-  } catch (_) {}
+    return true;
+  } catch (e) {
+    handleStorageError(e, 'save tasks');
+    return false;
+  }
 }
 
 export function loadSettings(): AppSettings {
@@ -112,8 +197,12 @@ function sanitizeStatus(v: any): Status | undefined {
   return v === 'todo' || v === 'in_progress' || v === 'waiting' || v === 'done' ? v : undefined;
 }
 
-export function saveSettings(s: AppSettings) {
+export function saveSettings(s: AppSettings): boolean {
   try {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
-  } catch (_) {}
+    return true;
+  } catch (e) {
+    handleStorageError(e, 'save settings');
+    return false;
+  }
 }

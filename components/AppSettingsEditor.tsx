@@ -139,8 +139,14 @@ export function AppSettingsEditor(props: {
       </div>
       {onSyncPush || onSyncPull ? (
         <div className="mt-6">
-          <div className="mb-2 font-semibold">Sync via GitHub Gist</div>
+          <div className="mb-2 font-semibold flex items-center gap-2">
+            <span>Sync via GitHub Gist</span>
+            <span className="text-xs bg-amber-900/30 text-amber-300 border border-amber-700/50 rounded px-2 py-0.5">⚠️ Plaintext Storage</span>
+          </div>
           <div className="text-xs text-slate-400 mb-2">Stores a JSON export in a GitHub Gist. Use a token with the "gist" scope. Token is saved in this browser/app profile.</div>
+          <div className="text-xs bg-rose-900/20 border border-rose-700/50 text-rose-300 rounded px-3 py-2 mb-3">
+            <strong>Security Warning:</strong> Tokens are stored unencrypted in localStorage. Only use on trusted devices.
+          </div>
           <div className="grid gap-2" style={{gridTemplateColumns:'12rem 1fr'}}>
             <label className="flex items-center gap-2">
               <span className="w-44">Gist Token</span>
@@ -214,7 +220,13 @@ export function AppSettingsEditor(props: {
         )}
         {/* Cloud Sync section */}
         <div className="mt-4 border-t border-slate-700/40 pt-3">
-          <div className="mb-2 font-medium">Cloud Sync (Server)</div>
+          <div className="mb-2 font-medium flex items-center gap-2">
+            <span>Cloud Sync (Server)</span>
+            <span className="text-xs bg-amber-900/30 text-amber-300 border border-amber-700/50 rounded px-2 py-0.5">⚠️ Plaintext Storage</span>
+          </div>
+          <div className="text-xs bg-rose-900/20 border border-rose-700/50 text-rose-300 rounded px-3 py-2 mb-3">
+            <strong>Security Warning:</strong> Sync keys are stored unencrypted in localStorage. Use strong, unique keys and only enable on trusted devices.
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-200">
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={!!cloudEnabled} onChange={(e)=>setCloudEnabled(e.currentTarget.checked)} /> Enable Cloud Sync
