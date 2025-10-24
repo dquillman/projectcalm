@@ -1,3 +1,5 @@
+/* @jsxRuntime classic */
+/* @jsx React.createElement */
 import type { ID, Task, Tab } from '../lib/types';
 import {
   classNames,

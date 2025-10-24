@@ -1,3 +1,5 @@
+/* @jsxRuntime classic */
+/* @jsx React.createElement */
 import { componentStyles, getPriorityTone, getDifficultyTone } from '../lib/theme';
 
 interface BadgeProps {

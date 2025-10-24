@@ -1,3 +1,5 @@
+/* @jsxRuntime classic */
+/* @jsx React.createElement */
 import type { ID, Step, Tab, Task, SortMode } from '../../lib/types';
 import { TaskItem } from '../TaskItem';
 import { classNames, filterStepsForTab, sortSteps } from '../../lib/utils';
