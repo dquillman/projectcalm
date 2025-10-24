@@ -1,7 +1,9 @@
-import { SelectHTMLAttributes } from 'react';
+/* @jsxRuntime classic */
+/* @jsx React.createElement */
+// Use global React from UMD build
 import { componentStyles } from '../lib/theme';
 
-interface FormSelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
+interface FormSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label: string;
   error?: string;
   helperText?: string;

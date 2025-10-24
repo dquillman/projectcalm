@@ -1,7 +1,11 @@
-import { InputHTMLAttributes, useRef, useEffect } from 'react';
+/* @jsxRuntime classic */
+/* @jsx React.createElement */
+// Use global React from UMD build
+const { useRef, useEffect } = React as typeof React;
+
 import { componentStyles } from '../lib/theme';
 
-interface SearchBoxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
+interface SearchBoxProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'> {
   value: string;
   onChange: (value: string) => void;
   onClear?: () => void;

@@ -1,7 +1,9 @@
-import { TextareaHTMLAttributes } from 'react';
+/* @jsxRuntime classic */
+/* @jsx React.createElement */
+// Use global React from UMD build
 import { componentStyles } from '../lib/theme';
 
-interface FormTextAreaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
+interface FormTextAreaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label: string;
   error?: string;
   helperText?: string;

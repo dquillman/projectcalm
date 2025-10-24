@@ -1,4 +1,8 @@
-import { useEffect, useRef } from 'react';
+/* @jsxRuntime classic */
+/* @jsx React.createElement */
+// Use global React from UMD build
+const { useEffect, useRef } = React as typeof React;
+
 import { componentStyles } from '../lib/theme';
 
 interface ModalProps {

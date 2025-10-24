@@ -1,7 +1,11 @@
-import { ButtonHTMLAttributes, forwardRef } from 'react';
+/* @jsxRuntime classic */
+/* @jsx React.createElement */
+// Use global React from UMD build
+const { forwardRef } = React as typeof React;
+
 import { componentStyles } from '../lib/theme';
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'outline';
   size?: 'xs' | 'sm' | 'md' | 'lg';
   fullWidth?: boolean;
