@@ -1,4 +1,8 @@
-import { useEffect, useState } from 'react';
+/* @jsxRuntime classic */
+/* @jsx React.createElement */
+// Use global React from UMD build
+const { useEffect, useState } = React as typeof React;
+
 import type { AppSettings } from '../lib/types';
 import { loadSettings, saveSettings } from '../lib/storage';
 

@@ -1,4 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+/* @jsxRuntime classic */
+/* @jsx React.createElement */
+// Use global React from UMD build
+const { useEffect, useMemo, useState } = React as typeof React;
+
 import type { ID, Task } from '../lib/types';
 import { loadTasks, saveTasks } from '../lib/storage';
 import { uid } from '../lib/utils';

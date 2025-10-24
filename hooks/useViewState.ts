@@ -1,4 +1,8 @@
-import { useMemo, useState } from 'react';
+/* @jsxRuntime classic */
+/* @jsx React.createElement */
+// Use global React from UMD build
+const { useMemo, useState } = React as typeof React;
+
 import type { ID, SortMode, Step, Tab, Task } from '../lib/types';
 
 type View = 'projects' | 'everything' | 'steps' | 'tasks' | 'focus';
