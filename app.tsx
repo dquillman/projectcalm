@@ -22,6 +22,7 @@ import { PlanModal, type PlanCandidate } from './components/PlanModal';
 import { FocusPane } from './components/FocusPane';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Button } from './components/Button';
+import { SearchBox } from './components/SearchBox';
 import { ProjectsView } from './components/views/ProjectsView';
 import { EverythingView } from './components/views/EverythingView';
 import { StepsView } from './components/views/StepsView';
@@ -32,6 +33,9 @@ import { filterStepsForTab, sortProjects, sortSteps, classNames } from './lib/ut
 type View = 'projects' | 'everything' | 'steps' | 'tasks' | 'focus';
 
 export function ProjectCalmApp() {
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Storage error handling
   const [storageError, setStorageError] = useState<string | null>(null);
   const [storageQuota, setStorageQuota] = useState<{ used: number; available: number; percentage: number } | null>(null);
@@ -118,6 +122,30 @@ export function ProjectCalmApp() {
     () => sortProjects(activeProjects, sortMode, tab),
     [activeProjects, sortMode, tab]
   );
+
+  // Search filtering
+  const filteredProjects = useMemo(() => {
+    if (!searchQuery.trim()) return sortedProjects;
+
+    const query = searchQuery.toLowerCase();
+    return sortedProjects.filter(p =>
+      p.name.toLowerCase().includes(query) ||
+      p.steps.some(s =>
+        s.title.toLowerCase().includes(query) ||
+        (s.notes && s.notes.toLowerCase().includes(query))
+      )
+    );
+  }, [sortedProjects, searchQuery]);
+
+  const filteredTasks = useMemo(() => {
+    if (!searchQuery.trim()) return tasks;
+
+    const query = searchQuery.toLowerCase();
+    return tasks.filter(t =>
+      t.title.toLowerCase().includes(query) ||
+      (t.notes && t.notes.toLowerCase().includes(query))
+    );
+  }, [tasks, searchQuery]);
 
   const allOpenSteps = useMemo(() => {
     const out: Array<{ projectId: ID; step: Step; projectName: string }> = [];
@@ -232,18 +260,19 @@ export function ProjectCalmApp() {
         )}
 
         {/* Header */}
-        <div className="flex items-center sticky top-0 z-10 bg-slate-950/80 backdrop-blur px-2 py-2 border-b border-slate-800/60">
-          {/* Left: title */}
-          <div className="flex items-center gap-2">
-            <div className={classNames('text-lg font-semibold', strongText)}>
-              Project Calm
+        <div className="sticky top-0 z-10 bg-slate-950/80 backdrop-blur border-b border-slate-800/60">
+          <div className="flex items-center px-2 py-2">
+            {/* Left: title */}
+            <div className="flex items-center gap-2">
+              <div className={classNames('text-lg font-semibold', strongText)}>
+                Project Calm
+              </div>
+              <div className={classNames('text-xs', subtleText)} title="Version">
+                {(window as any).__APP_VERSION || 'vNext'}
+              </div>
             </div>
-            <div className={classNames('text-xs', subtleText)} title="Version">
-              {(window as any).__APP_VERSION || 'vNext'}
-            </div>
-          </div>
 
-          {/* Center: view buttons */}
+            {/* Center: view buttons */}
           <div className="flex flex-1 items-center justify-center overflow-x-auto">
             <div className="flex items-center gap-1">
               <button
@@ -331,13 +360,30 @@ export function ProjectCalmApp() {
             >
               Settings
             </button>
-            {view === 'focus' ? (
-              (() => {
-                const t = focusTarget;
-                if (!t) return <div className={classNames('text-sm', subtleText)}>No focus target.</div>;
-                const task = tasks.find((x) => x.id === t.id);
-                if (!task) return <div className={classNames('text-sm', subtleText)}>Not found.</div>;
-                return (
+          </div>
+
+          {/* Search Box Row */}
+          {view !== 'focus' && (
+            <div className="px-2 pb-2">
+              <SearchBox
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder={`Search ${view}...`}
+                className="max-w-md"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Main Content Area */}
+        <div>
+          {view === 'focus' ? (
+            (() => {
+              const t = focusTarget;
+              if (!t) return <div className={classNames('text-sm', subtleText)}>No focus target.</div>;
+              const task = tasks.find((x) => x.id === t.id);
+              if (!task) return <div className={classNames('text-sm', subtleText)}>Not found.</div>;
+              return (
                   <FocusPane
                     title={task.title}
                     onDone={() => tasksHook.toggleTaskDone(task.id)}
@@ -458,7 +504,7 @@ export function ProjectCalmApp() {
           <div className="p-4 space-y-3">
             {view === 'projects' ? (
               <ProjectsView
-                sortedProjects={sortedProjects}
+                sortedProjects={filteredProjects}
                 stepsByProjectForTab={stepsByProjectForTab}
                 tab={tab}
                 appSettings={appSettings}
@@ -476,8 +522,8 @@ export function ProjectCalmApp() {
               />
             ) : view === 'everything' ? (
               <EverythingView
-                projects={projects}
-                tasks={tasks}
+                projects={filteredProjects}
+                tasks={filteredTasks}
                 tab={tab}
                 sortMode={sortMode}
                 appSettings={appSettings}
@@ -500,7 +546,7 @@ export function ProjectCalmApp() {
               />
             ) : view === 'steps' ? (
               <StepsView
-                projects={projects}
+                projects={filteredProjects}
                 tab={tab}
                 sortMode={sortMode}
                 appSettings={appSettings}
@@ -513,7 +559,7 @@ export function ProjectCalmApp() {
               />
             ) : (
               <TasksView
-                tasks={tasks}
+                tasks={filteredTasks}
                 tab={tab}
                 sortMode={sortMode}
                 appSettings={appSettings}
