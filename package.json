@@ -40,7 +40,7 @@
     "@capacitor/cli": "^7.4.3",
     "@capacitor/core": "^7.4.3",
     "@types/node": "^24.6.0",
-    "@typescript-eslint/eslint-plugin": "^8.45.0",
+    "@typescript-eslint/eslint-plugin": "^8.46.2",
     "@typescript-eslint/parser": "^8.45.0",
     "concurrently": "^8.2.2",
     "electron": "^31.0.0",
