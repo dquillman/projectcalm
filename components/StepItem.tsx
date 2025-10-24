@@ -1,8 +1,10 @@
 ﻿/* @jsxRuntime classic */
 /* @jsx React.createElement */
 import type { ID, Step, Tab } from '../lib/types';
-import { classNames, formatHours, daysUntilDue, priorityLabel, difficultyLabel, smartExplain, statusLabel } from '../lib/utils';
-import { btnDestructive, chipTone, listItemTone } from '../lib/styles';
+import { classNames, formatHours, daysUntilDue, smartExplain, statusLabel } from '../lib/utils';
+import { btnDestructive, listItemTone } from '../lib/styles';
+import { Button } from './Button';
+import { ImprovedBadge, PriorityBadge, DifficultyBadge, DueBadge } from './ImprovedBadge';
 
 export function StepItem(props: {
   projectId: ID;
@@ -20,105 +22,117 @@ export function StepItem(props: {
   const { projectId, step: s, tab } = props;
   const ui = props.ui || { showPriority: true, showDifficulty: true, showDueDate: true, showStatus: true, showEta: true };
   return (
-    <li className={classNames('flex items-center justify-between gap-3 rounded-lg border p-3', listItemTone)}>
+    <li
+      className={classNames('flex items-center justify-between gap-3 rounded-lg border p-3', listItemTone)}
+      role="article"
+      aria-label={`Step: ${s.title}`}
+    >
       <div className="flex items-center gap-3 flex-1 min-w-0">
         <div className="min-w-0">
-          <div className={classNames('text-sm', s.done ? 'line-through text-slate-500' : 'text-slate-200')} title={smartExplain(s)}>
+          <div
+            className={classNames('text-sm', s.done ? 'line-through text-slate-500' : 'text-slate-200')}
+            title={smartExplain(s)}
+            id={`step-title-${s.id}`}
+          >
             {props.titlePrefix ? props.titlePrefix + ': ' : ''}{s.title}
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-slate-300">
+          <div className="mt-1 flex flex-wrap items-center gap-2">
             {!s.deletedAt && !s.done && s.today && (
-              <span className={classNames('px-1 rounded', chipTone.ok)}>Today</span>
+              <ImprovedBadge tone="success">Today</ImprovedBadge>
             )}
             {ui.showStatus && s.status && !s.deletedAt && !s.done && (
-              <span className={classNames('px-1 rounded', (
-                s.status === 'waiting' ? chipTone.warn :
-                s.status === 'in_progress' ? chipTone.info :
-                s.status === 'todo' ? chipTone.purple : chipTone.neutral
-              ))}>
+              <ImprovedBadge
+                tone={
+                  s.status === 'waiting'
+                    ? 'warning'
+                    : s.status === 'in_progress'
+                    ? 'info'
+                    : s.status === 'todo'
+                    ? 'neutral'
+                    : 'neutral'
+                }
+              >
                 {statusLabel(s.status)}
-              </span>
+              </ImprovedBadge>
             )}
-            {ui.showPriority && s.priority != null && (() => {
-              const p = s.priority as number;
-              const tone = p <= 1 ? chipTone.danger : p === 2 ? chipTone.warn : p === 3 ? chipTone.info : p === 4 ? chipTone.purple : chipTone.ok;
-              return (
-                <span className={classNames('px-1 rounded', tone)} title={`Priority ${p} (${priorityLabel(p)})`}>
-                  Priority: {priorityLabel(p)} ({p})
-                </span>
-              );
-            })()}
-            {ui.showDifficulty && s.difficulty != null && (() => {
-              const d = s.difficulty as number;
-              const tone = d <= 1 ? chipTone.danger : d === 2 ? chipTone.warn : d === 3 ? chipTone.info : d === 4 ? chipTone.purple : chipTone.ok;
-              return (
-                <span className={classNames('px-1 rounded', tone)} title={`Difficulty ${d} (${difficultyLabel(d)})`}>
-                  Difficulty: {difficultyLabel(d)} ({d})
-                </span>
-              );
-            })()}
-            {ui.showDueDate && s.dueDate && (() => {
-              const d = daysUntilDue(s.dueDate);
-              const tone = (d ?? 9999) < 0 ? chipTone.danger : (d != null && d <= 5 ? chipTone.warn : chipTone.ok);
-              return (
-                <span className={classNames('px-1 rounded', tone)}>Due In: {d}</span>
-              );
-            })()}
+            {ui.showPriority && s.priority != null && (
+              <PriorityBadge priority={s.priority as number} />
+            )}
+            {ui.showDifficulty && s.difficulty != null && (
+              <DifficultyBadge difficulty={s.difficulty as number} />
+            )}
+            {ui.showDueDate && s.dueDate && (
+              <DueBadge daysUntil={daysUntilDue(s.dueDate) ?? 0} />
+            )}
             {ui.showEta && typeof s.estimatedMinutes === 'number' && (
-              <span className={classNames('px-1 rounded', chipTone.neutral)} title="Estimated Time to Completion">
-                ETC {formatHours(s.estimatedMinutes)} hrs
-              </span>
+              <ImprovedBadge tone="neutral" className="text-[11px]">
+                {formatHours(s.estimatedMinutes)}h
+              </ImprovedBadge>
             )}
-            {s.done && <span className={classNames('px-1 rounded', chipTone.ok)}>Done</span>}
-            {s.notes && <span className={classNames('px-1 rounded', chipTone.ok)}>Note</span>}
-            {s.deletedAt && <span className={classNames('px-1 rounded', chipTone.warn)}>Trash</span>}
+            {s.done && <ImprovedBadge tone="success">Done</ImprovedBadge>}
+            {s.notes && <ImprovedBadge tone="info">Note</ImprovedBadge>}
+            {s.deletedAt && <ImprovedBadge tone="warning">Trash</ImprovedBadge>}
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-2 flex-none shrink-0">
+      <div className="flex items-center gap-2 flex-none shrink-0" role="group" aria-label="Step actions">
         {tab !== 'trash' ? (
           <>
-            <button
-              className={classNames('text-xs px-2 py-1 rounded border', 'border-slate-600')}
+            <Button
+              size="xs"
+              variant={s.done ? 'secondary' : 'success'}
               onClick={() => props.onToggleDone(projectId, s.id)}
+              aria-label={s.done ? `Mark ${s.title} as not done` : `Mark ${s.title} as done`}
+              aria-pressed={s.done}
             >
               {s.done ? 'Undo' : 'Done'}
-            </button>
+            </Button>
             {!s.done && (
-              <button
-                className={classNames('text-xs px-2 py-1 rounded border', 'border-slate-600')}
+              <Button
+                size="xs"
+                variant={s.today ? 'secondary' : 'outline'}
                 onClick={() => props.onToggleToday(projectId, s.id)}
+                aria-label={s.today ? `Remove ${s.title} from today` : `Add ${s.title} to today`}
+                aria-pressed={s.today}
               >
                 {s.today ? 'Untoday' : 'Today'}
-              </button>
+              </Button>
             )}
-            <button
-              className={classNames('text-xs px-2 py-1 rounded border', 'border-slate-600')}
+            <Button
+              size="xs"
+              variant="outline"
               onClick={() => props.onEdit(projectId, s)}
+              aria-label={`Edit step ${s.title}`}
             >
               Edit
-            </button>
-            <button
-              className={classNames('text-xs px-2 py-1 rounded border', btnDestructive)}
+            </Button>
+            <Button
+              size="xs"
+              variant="danger"
               onClick={() => props.onSoftDelete(projectId, s.id)}
+              aria-label={`Delete step ${s.title}`}
             >
               Delete
-            </button>
+            </Button>
           </>
         ) : (
           <>
-            <button
-              className={classNames('text-xs px-2 py-1 rounded border', 'border-slate-600')}
+            <Button
+              size="xs"
+              variant="secondary"
               onClick={() => props.onRestore(projectId, s.id)}
+              aria-label={`Restore step ${s.title} from trash`}
             >
               Restore
-            </button>
-            <button
-              className={classNames('text-xs px-2 py-1 rounded border', btnDestructive)}
+            </Button>
+            <Button
+              size="xs"
+              variant="danger"
               onClick={() => props.onPurge(projectId, s.id)}
+              aria-label={`Permanently delete step ${s.title}`}
             >
               Purge
-            </button>
+            </Button>
           </>
         )}
       </div>

@@ -1,22 +1,17 @@
 name: Feature request
-description: Suggest an idea to improve Project Calm
+description: Suggest an idea for this project
 labels: [enhancement]
 body:
   - type: textarea
-    id: summary
+    id: problem
     attributes:
-      label: Summary
-      description: What would you like to see added or changed?
-    validations:
-      required: true
+      label: Is your feature request related to a problem?
   - type: textarea
-    id: motivation
+    id: solution
     attributes:
-      label: Motivation
-      description: What problem does this solve? Why is this useful?
+      label: Describe the solution you'd like
   - type: textarea
-    id: details
+    id: alternatives
     attributes:
-      label: Details
-      description: Any additional context or examples
+      label: Describe alternatives you've considered
 

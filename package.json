@@ -1,10 +1,13 @@
 {
   "name": "projectcalm",
-  "version": "0.1.99",
+  "version": "0.1.100",
   "description": "Project Calm desktop app",
   "main": "electron/main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint . --ext .js,.ts,.tsx",
+    "format": "prettier -w .",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "build": "node tools/build-esbuild.js",
     "dev": "node tools/build-esbuild.js --watch",
     "dev:app": "concurrently -k -n build,app -c green,yellow \"node tools/build-esbuild.js --watch\" \"nodemon\"",
@@ -36,12 +39,19 @@
     "@capacitor/android": "^7.4.3",
     "@capacitor/cli": "^7.4.3",
     "@capacitor/core": "^7.4.3",
+    "@types/node": "^24.6.0",
+    "@typescript-eslint/eslint-plugin": "^8.45.0",
+    "@typescript-eslint/parser": "^8.45.0",
     "concurrently": "^8.2.2",
     "electron": "^31.0.0",
     "electron-builder": "^24.13.3",
     "electron-packager": "^17.1.2",
     "esbuild": "^0.25.9",
-    "nodemon": "^3.1.10"
+    "eslint": "^9.36.0",
+    "eslint-config-prettier": "^10.1.8",
+    "nodemon": "^3.1.10",
+    "prettier": "^3.6.2",
+    "vitest": "^3.2.4"
   },
   "build": {
     "appId": "com.projectcalm",
@@ -63,5 +73,11 @@
       ],
       "artifactName": "${productName}-${version}-Setup.${ext}"
     }
+  },
+  "dependencies": {
+    "@types/react-window": "^1.8.8",
+    "react-hot-toast": "^2.6.0",
+    "react-window": "^2.2.1",
+    "zod": "^4.1.12"
   }
 }

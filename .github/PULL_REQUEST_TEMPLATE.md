@@ -1,14 +1,15 @@
 ## Summary
-- Describe the change and why it’s needed.
+
+Describe the change and its purpose.
 
 ## Changes
-- Bullet the key changes for easy review.
+- 
 
 ## Testing
-- How did you test this change?
+- [ ] `npm run lint` passes
+- [ ] `npm test` passes
 
-## Checklist
-- [ ] CI passes
-- [ ] Version unaffected or bump applied if needed
-- [ ] Docs/README updated if applicable
+## Screenshots (if UI)
+
+## Notes
 
