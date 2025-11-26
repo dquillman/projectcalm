@@ -58,6 +58,7 @@
     "productName": "Project Calm",
     "files": [
       "index.html",
+      "favicon.ico",
       "dist/**",
       "vendor/**",
       "electron/**",
