@@ -28,7 +28,9 @@ export type Project = {
   name: string;
   steps: Step[];
   deletedAt?: string;
+  createdAt?: string;
 };
+
 
 export type Task = Step & { kind?: 'task' };
 

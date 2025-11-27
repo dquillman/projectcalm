@@ -15,6 +15,7 @@ import { useViewState } from './hooks/useViewState';
 import { useAppSettings } from './hooks/useAppSettings';
 import { useSyncState } from './hooks/useSyncState';
 import { useImportExport } from './hooks/useImportExport';
+import { useAuth } from './hooks/useAuth';
 import { AppSettingsEditor } from './components/AppSettingsEditor';
 import { BreatheGuide } from './components/BreatheGuide';
 import { EditItemModal } from './components/EditItemModal';
@@ -33,6 +34,9 @@ import { filterStepsForTab, sortProjects, sortSteps, classNames } from './lib/ut
 type View = 'projects' | 'everything' | 'steps' | 'tasks' | 'focus';
 
 export function ProjectCalmApp() {
+  // Auth state
+  const { user, loading: authLoading } = useAuth();
+
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -59,15 +63,18 @@ export function ProjectCalmApp() {
   const [theme, setTheme] = useTheme();
 
   // Settings
-  const { appSettings, setAppSettings } = useAppSettings();
+  const { appSettings, setAppSettings, loading: settingsLoading } = useAppSettings(user?.uid);
 
   // Projects state
-  const projectsHook = useProjectsState(appSettings.defaults);
-  const { projects, setProjects, activeProjects } = projectsHook;
+  const projectsHook = useProjectsState(appSettings.defaults, user?.uid);
+  const { projects, setProjects, activeProjects, loading: projectsLoading } = projectsHook;
 
   // Tasks state
-  const tasksHook = useTasksState(appSettings.defaults);
-  const { tasks, setTasks, allOpenTasks } = tasksHook;
+  const tasksHook = useTasksState(appSettings.defaults, user?.uid);
+  const { tasks, setTasks, allOpenTasks, loading: tasksLoading } = tasksHook;
+
+  const isLoading = authLoading || settingsLoading || projectsLoading || tasksLoading;
+
 
   // View state
   const viewState = useViewState();
@@ -227,6 +234,18 @@ export function ProjectCalmApp() {
     clearPlanSelection();
   }
 
+  // Show loading state while auth is initializing or initial data sync is happening
+  if (authLoading || (user && (projectsLoading || tasksLoading || settingsLoading))) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-slate-400">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+          <div>Loading Project Calm...</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <ErrorBoundary>
       <div className="max-w-5xl mx-auto space-y-4">
@@ -273,117 +292,117 @@ export function ProjectCalmApp() {
             </div>
 
             {/* Center: view buttons */}
-          <div className="flex flex-1 items-center justify-center overflow-x-auto">
-            <div className="flex items-center gap-1">
-              <button
+            <div className="flex flex-1 items-center justify-center overflow-x-auto">
+              <div className="flex items-center gap-1">
+                <button
+                  className={classNames(
+                    'sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border',
+                    view === 'projects'
+                      ? btnSelected
+                      : 'border-slate-700 hover:bg-slate-800/30 text-slate-300'
+                  )}
+                  onClick={() => setView('projects')}
+                  aria-pressed={view === 'projects'}
+                >
+                  Projects
+                </button>
+                <button
+                  className={classNames(
+                    'sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border',
+                    view === 'everything'
+                      ? btnSelected
+                      : 'border-slate-700 hover:bg-slate-800/30 text-slate-300'
+                  )}
+                  onClick={() => setView('everything')}
+                  aria-pressed={view === 'everything'}
+                >
+                  Everything
+                </button>
+                <button
+                  className={classNames(
+                    'sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border',
+                    view === 'steps'
+                      ? btnSelected
+                      : 'border-slate-700 hover:bg-slate-800/30 text-slate-300'
+                  )}
+                  onClick={() => setView('steps')}
+                  aria-pressed={view === 'steps'}
+                >
+                  Steps
+                </button>
+                <button
+                  className={classNames(
+                    'sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border',
+                    view === 'tasks'
+                      ? btnSelected
+                      : 'border-slate-700 hover:bg-slate-800/30 text-slate-300'
+                  )}
+                  onClick={() => setView('tasks')}
+                  aria-pressed={view === 'tasks'}
+                >
+                  Tasks
+                </button>
+              </div>
+            </div>
+
+            {/* Right: actions */}
+            <div className="flex items-center gap-2">
+              <select
                 className={classNames(
-                  'sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border',
-                  view === 'projects'
-                    ? btnSelected
-                    : 'border-slate-700 hover:bg-slate-800/30 text-slate-300'
+                  'sm:hidden text-xs px-2 py-1 rounded border border-slate-700 bg-slate-900 text-slate-200'
                 )}
-                onClick={() => setView('projects')}
-                aria-pressed={view === 'projects'}
+                value={view}
+                onChange={(e) => setView((e.target as HTMLSelectElement).value as View)}
+                title="Change view"
+                aria-label="Change view"
               >
-                Projects
+                <option value="projects">Projects</option>
+                <option value="everything">Everything</option>
+                <option value="steps">Steps</option>
+                <option value="tasks">Tasks</option>
+              </select>
+              <button
+                className={classNames(btnBase, btnNeutral, 'hidden sm:inline-flex')}
+                onClick={() => setShowPlan(true)}
+              >
+                Plan
               </button>
               <button
-                className={classNames(
-                  'sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border',
-                  view === 'everything'
-                    ? btnSelected
-                    : 'border-slate-700 hover:bg-slate-800/30 text-slate-300'
-                )}
-                onClick={() => setView('everything')}
-                aria-pressed={view === 'everything'}
+                className={classNames(btnBase, btnNeutral, 'hidden sm:inline-flex')}
+                onClick={() => setShowBreathe(true)}
               >
-                Everything
+                Breathe
               </button>
               <button
-                className={classNames(
-                  'sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border',
-                  view === 'steps'
-                    ? btnSelected
-                    : 'border-slate-700 hover:bg-slate-800/30 text-slate-300'
-                )}
-                onClick={() => setView('steps')}
-                aria-pressed={view === 'steps'}
+                className={classNames(btnBase, btnNeutral)}
+                onClick={() => setShowSettings(true)}
               >
-                Steps
-              </button>
-              <button
-                className={classNames(
-                  'sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border',
-                  view === 'tasks'
-                    ? btnSelected
-                    : 'border-slate-700 hover:bg-slate-800/30 text-slate-300'
-                )}
-                onClick={() => setView('tasks')}
-                aria-pressed={view === 'tasks'}
-              >
-                Tasks
+                Settings
               </button>
             </div>
+
+            {/* Search Box Row */}
+            {view !== 'focus' && (
+              <div className="px-2 pb-2">
+                <SearchBox
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  placeholder={`Search ${view}...`}
+                  className="max-w-md"
+                />
+              </div>
+            )}
           </div>
 
-          {/* Right: actions */}
-          <div className="flex items-center gap-2">
-            <select
-              className={classNames(
-                'sm:hidden text-xs px-2 py-1 rounded border border-slate-700 bg-slate-900 text-slate-200'
-              )}
-              value={view}
-              onChange={(e) => setView((e.target as HTMLSelectElement).value as View)}
-              title="Change view"
-              aria-label="Change view"
-            >
-              <option value="projects">Projects</option>
-              <option value="everything">Everything</option>
-              <option value="steps">Steps</option>
-              <option value="tasks">Tasks</option>
-            </select>
-            <button
-              className={classNames(btnBase, btnNeutral, 'hidden sm:inline-flex')}
-              onClick={() => setShowPlan(true)}
-            >
-              Plan
-            </button>
-            <button
-              className={classNames(btnBase, btnNeutral, 'hidden sm:inline-flex')}
-              onClick={() => setShowBreathe(true)}
-            >
-              Breathe
-            </button>
-            <button
-              className={classNames(btnBase, btnNeutral)}
-              onClick={() => setShowSettings(true)}
-            >
-              Settings
-            </button>
-          </div>
-
-          {/* Search Box Row */}
-          {view !== 'focus' && (
-            <div className="px-2 pb-2">
-              <SearchBox
-                value={searchQuery}
-                onChange={setSearchQuery}
-                placeholder={`Search ${view}...`}
-                className="max-w-md"
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Main Content Area */}
-        <div>
-          {view === 'focus' ? (
-            (() => {
-              const t = focusTarget;
-              if (!t) return <div className={classNames('text-sm', subtleText)}>No focus target.</div>;
-              const task = tasks.find((x) => x.id === t.id);
-              if (!task) return <div className={classNames('text-sm', subtleText)}>Not found.</div>;
-              return (
+          {/* Main Content Area */}
+          <div>
+            {view === 'focus' ? (
+              (() => {
+                const t = focusTarget;
+                if (!t) return <div className={classNames('text-sm', subtleText)}>No focus target.</div>;
+                const task = tasks.find((x) => x.id === t.id);
+                if (!task) return <div className={classNames('text-sm', subtleText)}>Not found.</div>;
+                return (
                   <FocusPane
                     title={task.title}
                     onDone={() => tasksHook.toggleTaskDone(task.id)}
@@ -604,7 +623,7 @@ export function ProjectCalmApp() {
                         'settings-save-button'
                       ) as HTMLButtonElement | null;
                       if (btn) btn.click();
-                    } catch (_) {}
+                    } catch (_) { }
                     setShowSettings(false);
                   }}
                 >

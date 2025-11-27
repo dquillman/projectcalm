@@ -11,7 +11,7 @@ export function uid(): ID {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rnd = (crypto as any)?.randomUUID?.();
     if (rnd) return rnd;
-  } catch (_) {}
+  } catch (_) { }
   return 'id_' + Math.random().toString(36).slice(2, 10);
 }
 
@@ -145,16 +145,16 @@ export function smartExplain(s: Step): string {
   const df = s.difficulty;
   const etc = minutesToHours(s.estimatedMinutes ?? 0) ?? 0;
   const ageDays = (() => {
-    try { if (!s.createdAt) return 0; const t0 = new Date(s.createdAt).getTime(); const t1 = Date.now(); return Math.max(0, Math.floor((t1 - t0) / (24*60*60*1000))); } catch { return 0; }
+    try { if (!s.createdAt) return 0; const t0 = new Date(s.createdAt).getTime(); const t1 = Date.now(); return Math.max(0, Math.floor((t1 - t0) / (24 * 60 * 60 * 1000))); } catch { return 0; }
   })();
   const parts = [
     `Done: ${s.done ? 'yes' : 'no'}`,
     `Today: ${s.today ? 'yes' : 'no'}`,
-    `Status: ${s.status ?? '(none)'}${s.status==='waiting' ? ' (penalized)' : s.status==='in_progress' ? ' (boosted)' : ''}`,
+    `Status: ${s.status ?? '(none)'}${s.status === 'waiting' ? ' (penalized)' : s.status === 'in_progress' ? ' (boosted)' : ''}`,
     `Due in: ${d != null ? d : 'n/a'} days`,
     `Priority: ${pr != null ? `${priorityLabel(pr)} (${pr})` : 'n/a'}`,
     `Difficulty: ${df != null ? `${difficultyLabel(df)} (${df})` : 'n/a'}`,
-    `ETC: ${etc ? `${Math.round(etc*10)/10} hrs` : 'n/a'}`,
+    `ETC: ${etc ? `${Math.round(etc * 10) / 10} hrs` : 'n/a'}`,
     `Age: ${ageDays} days`,
   ];
   return parts.join(' | ');
@@ -295,3 +295,12 @@ export function statusLabel(s?: string): string | undefined {
   if (s === 'in_progress') return 'In Progress';
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+
+/**
+ * Recursively removes undefined values from an object to make it Firestore-safe.
+ * Firestore throws an error if a field is undefined.
+ */
+export function sanitizeForFirestore<T>(obj: T): T {
+  return JSON.parse(JSON.stringify(obj));
+}
+
