@@ -13,7 +13,6 @@ import { useProjectsState } from './hooks/useProjectsState';
 import { useTasksState } from './hooks/useTasksState';
 import { useViewState } from './hooks/useViewState';
 import { useAppSettings } from './hooks/useAppSettings';
-import { useSyncState } from './hooks/useSyncState';
 import { useImportExport } from './hooks/useImportExport';
 import { useAuth } from './hooks/useAuth';
 import { AppSettingsEditor } from './components/AppSettingsEditor';
@@ -112,17 +111,6 @@ export function ProjectCalmApp() {
     setAppSettings,
   });
 
-  // Sync
-  const syncHook = useSyncState(
-    {
-      setProjects,
-      setTasks,
-      setAppSettings,
-      buildExportPayload: importExportHook.buildExportPayload,
-    },
-    projects,
-    tasks
-  );
 
   // Computed values
   const sortedProjects = useMemo(
@@ -662,10 +650,6 @@ export function ProjectCalmApp() {
                     alert('Import failed. ' + (e as Error).message);
                   }
                 }}
-                onSyncPush={syncHook.onSyncPush}
-                onSyncPull={syncHook.onSyncPull}
-                onCloudPush={syncHook.onCloudPush}
-                onCloudPull={syncHook.onCloudPull}
               />
             </div>
           </div>
