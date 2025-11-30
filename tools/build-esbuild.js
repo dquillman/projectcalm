@@ -65,6 +65,28 @@ function produceIndexHtml() {
     fs.copyFileSync(versionFile, path.join(outdir, 'version.txt'));
   }
 
+  // Copy favicon and manifest
+  const faviconFile = path.resolve('favicon.ico');
+  if (fs.existsSync(faviconFile)) {
+    fs.copyFileSync(faviconFile, path.join(outdir, 'favicon.ico'));
+  }
+  const manifestFile = path.resolve('manifest.json');
+  if (fs.existsSync(manifestFile)) {
+    fs.copyFileSync(manifestFile, path.join(outdir, 'manifest.json'));
+  }
+  const icon192 = path.resolve('icon-192.png');
+  if (fs.existsSync(icon192)) {
+    fs.copyFileSync(icon192, path.join(outdir, 'icon-192.png'));
+  }
+  const icon512 = path.resolve('icon-512.png');
+  if (fs.existsSync(icon512)) {
+    fs.copyFileSync(icon512, path.join(outdir, 'icon-512.png'));
+  }
+  const appIco = path.resolve('app.ico');
+  if (fs.existsSync(appIco)) {
+    fs.copyFileSync(appIco, path.join(outdir, 'app.ico'));
+  }
+
   fs.writeFileSync(path.join(outdir, 'index.html'), html, 'utf8');
 }
 
