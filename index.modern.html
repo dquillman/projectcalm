@@ -5,10 +5,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Project Calm (Modern)</title>
-  <meta name="app-version" content="v0.2.2" />
+  <meta name="app-version" content="v0.3.0" />
   <link rel="icon" href="./favicon.ico" />
   <link rel="manifest" href="./manifest.json" />
   <link rel="apple-touch-icon" href="./icon-192.png" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'unsafe-inline' 'unsafe-eval'; connect-src * 'unsafe-inline'; img-src * data: blob: 'unsafe-inline'; frame-src *; style-src * 'unsafe-inline';">
   <script>
     (function () {
       try {
@@ -39,7 +41,7 @@
   <script src="./vendor/tailwindcss.js"></script>
 
   <!-- App bundle built by esbuild -->
-  <script src="./dist/app.js"></script>
+  <script src="./dist/app.js?v=0.3.0"></script>
 
   <!-- Mount -->
   <script>

@@ -34,7 +34,7 @@ type View = 'projects' | 'everything' | 'steps' | 'tasks' | 'focus';
 
 export function ProjectCalmApp() {
   // Auth state
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, signInWithGoogle, logout } = useAuth();
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -360,6 +360,18 @@ export function ProjectCalmApp() {
                 onClick={() => setShowBreathe(true)}
               >
                 Breathe
+              </button>
+              <button
+                className={classNames(btnBase, btnNeutral)}
+                onClick={() => {
+                  if (!user || user.isAnonymous) {
+                    signInWithGoogle();
+                  } else {
+                    if (confirm('Sign out?')) logout();
+                  }
+                }}
+              >
+                {!user || user.isAnonymous ? 'Sign In' : 'Sign Out'}
               </button>
               <button
                 className={classNames(btnBase, btnNeutral)}
