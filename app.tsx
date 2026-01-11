@@ -4,7 +4,7 @@
 // Defines window.ProjectCalmApp so index.html can mount it.
 
 // Grab hooks from global React injected by index.html
-const { useEffect, useMemo, useState } = React as typeof React;
+const { useEffect, useMemo, useState } = (window as any).React;
 
 import type { ID, Project, SortMode, Step, Tab } from './lib/types';
 import { useTheme } from './hooks/useTheme';
@@ -27,10 +27,11 @@ import { ProjectsView } from './components/views/ProjectsView';
 import { EverythingView } from './components/views/EverythingView';
 import { StepsView } from './components/views/StepsView';
 import { TasksView } from './components/views/TasksView';
+import { AssistantView } from './components/views/AssistantView';
 import { btnBase, btnNeutral, btnPositive, btnSelected, cardBase, cardTone, selectTone, strongText, subtleText } from './lib/styles';
 import { filterStepsForTab, sortProjects, sortSteps, classNames } from './lib/utils';
 
-type View = 'projects' | 'everything' | 'steps' | 'tasks' | 'focus';
+type View = 'projects' | 'everything' | 'steps' | 'tasks' | 'focus' | 'assistant';
 
 export function ProjectCalmApp() {
   // Auth state
@@ -56,6 +57,11 @@ export function ProjectCalmApp() {
         setStorageError(`Storage is ${quota.percentage.toFixed(0)}% full. Please export and clear old data.`);
       }
     });
+
+    // Handle deep links
+    if (window.location.pathname === '/assistant') {
+      setView('assistant');
+    }
   }, []);
 
   // Theme
@@ -236,7 +242,7 @@ export function ProjectCalmApp() {
 
   return (
     <ErrorBoundary>
-      <div className="max-w-5xl mx-auto space-y-4">
+      <div className={classNames("mx-auto space-y-4", view === 'assistant' ? 'max-w-[95%]' : 'max-w-5xl')}>
         {/* Storage Error Banner */}
         {storageError && (
           <div className="sticky top-0 z-50 bg-rose-900/90 border-l-4 border-rose-500 text-rose-100 px-4 py-3 rounded backdrop-blur">
@@ -330,6 +336,18 @@ export function ProjectCalmApp() {
                 >
                   Tasks
                 </button>
+                <button
+                  className={classNames(
+                    'sm:text-xs sm:px-2 sm:py-1 text-sm px-3 py-2 rounded border',
+                    view === 'assistant'
+                      ? btnSelected
+                      : 'border-slate-700 hover:bg-slate-800/30 text-slate-300'
+                  )}
+                  onClick={() => setView('assistant')}
+                  aria-pressed={view === 'assistant'}
+                >
+                  Assistant
+                </button>
               </div>
             </div>
 
@@ -348,6 +366,7 @@ export function ProjectCalmApp() {
                 <option value="everything">Everything</option>
                 <option value="steps">Steps</option>
                 <option value="tasks">Tasks</option>
+                <option value="assistant">Assistant</option>
               </select>
               <button
                 className={classNames(btnBase, btnNeutral, 'hidden sm:inline-flex')}
@@ -576,7 +595,7 @@ export function ProjectCalmApp() {
                 onRestore={projectsHook.restoreStep}
                 onPurge={projectsHook.purgeStep}
               />
-            ) : (
+            ) : view === 'tasks' ? (
               <TasksView
                 tasks={filteredTasks}
                 tab={tab}
@@ -592,6 +611,19 @@ export function ProjectCalmApp() {
                 onSoftDelete={tasksHook.softDeleteTask}
                 onRestore={tasksHook.restoreTask}
                 onPurge={tasksHook.purgeTask}
+              />
+            ) : (
+              <AssistantView
+                tasks={tasks}
+                projects={projects}
+                userDisplayName={user?.displayName || 'Dave'}
+                onToggleTaskDone={tasksHook.toggleTaskDone}
+                onToggleTaskToday={tasksHook.toggleTaskToday}
+                onUpdateTaskMeta={tasksHook.updateTaskMeta}
+                onFocusTask={(taskId) => {
+                  setFocusTarget({ kind: 'task', id: taskId });
+                  setView('focus');
+                }}
               />
             )}
           </div>

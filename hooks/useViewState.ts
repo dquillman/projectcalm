@@ -1,11 +1,11 @@
 /* @jsxRuntime classic */
 /* @jsx React.createElement */
 // Use global React from UMD build
-const { useMemo, useState } = React as typeof React;
+const { useMemo, useState } = (window as any).React;
 
 import type { ID, SortMode, Step, Tab, Task } from '../lib/types';
 
-type View = 'projects' | 'everything' | 'steps' | 'tasks' | 'focus';
+type View = 'projects' | 'everything' | 'steps' | 'tasks' | 'focus' | 'assistant';
 
 export interface PlanCandidate {
   key: string;

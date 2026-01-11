@@ -304,3 +304,80 @@ export function sanitizeForFirestore<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
 }
 
+
+/**
+ * Date Hardening Helpers
+ */
+
+/**
+ * Safely converts various date inputs to a Date object.
+ * Handles Firestore Timestamp (with toDate()), ISO strings, Date objects, and null/undefined.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function toDateSafe(input: any): Date | null {
+  if (!input) return null;
+  if (input instanceof Date) return input;
+  if (typeof input?.toDate === 'function') return input.toDate(); // Firestore Timestamp
+  if (typeof input === 'string') {
+    // Attempt basic parsing
+    const d = new Date(input);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof input === 'number') {
+    const d = new Date(input);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
+/**
+ * Returns YYYY-MM-DD string in local time.
+ * If date is invalid or null, returns null.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function toYMDLocal(input: any): string | null {
+  const d = toDateSafe(input);
+  if (!d) return null;
+  // Local YYYY-MM-DD
+  const offset = d.getTimezoneOffset();
+  // We want local date, but toISOString is UTC.
+  // Trick: shift time by offset so UTC value matches local
+  const local = new Date(d.getTime() - (offset * 60 * 1000));
+  return local.toISOString().split('T')[0];
+}
+
+/**
+ * Checks if input date matches "today" in local time.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function isDueToday(input: any): boolean {
+  const ymd = toYMDLocal(input);
+  if (!ymd) return false;
+  return ymd === toYMDLocal(new Date());
+}
+
+/**
+ * Checks if input date is strictly before "today" (overdue).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function isOverdue(input: any): boolean {
+  const ymd = toYMDLocal(input);
+  if (!ymd) return false;
+  const today = toYMDLocal(new Date())!;
+  // Lexical comparison works for YYYY-MM-DD
+  return ymd < today;
+}
+
+/**
+ * Compare two due dates (asc). Null/Undefined treated as "upcoming/later" (infinity) 
+ * so they appear after specific dates.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function compareDue(a: any, b: any): number {
+  const sa = toYMDLocal(a);
+  const sb = toYMDLocal(b);
+  if (sa === sb) return 0;
+  if (!sa) return 1; // a is empty -> push end
+  if (!sb) return -1; // b is empty -> push end
+  return sa.localeCompare(sb);
+}
