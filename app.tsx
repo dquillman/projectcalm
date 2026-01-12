@@ -630,6 +630,13 @@ export function ProjectCalmApp() {
                   setView('focus');
                 }}
                 onToggleStepDone={projectsHook.toggleStepDone}
+                onEditTask={(taskId) => setEditingTaskId(taskId)}
+                onEditStep={(projectId, stepId) => {
+                  const p = projects.find((x) => x.id === projectId);
+                  const s = p?.steps.find((x) => x.id === stepId);
+                  if (p && s) setEditingStep({ projectId: p.id, step: s });
+                }}
+                onToggleStepToday={projectsHook.toggleStepToday}
               />
             ) : null}
           </div>

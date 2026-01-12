@@ -47,6 +47,9 @@ interface AssistantViewProps {
     onUpdateTaskMeta: (id: ID, patch: Partial<Task>) => void;
     onFocusTask: (id: ID) => void;
     onToggleStepDone?: (projectId: ID, stepId: ID) => void;
+    onEditTask?: (id: ID) => void;
+    onEditStep?: (projectId: ID, stepId: ID) => void;
+    onToggleStepToday?: (projectId: ID, stepId: ID) => void;
 }
 
 // --- Memory & Context Types ---
@@ -226,7 +229,10 @@ export const AssistantView = ({
     onToggleTaskToday,
     onUpdateTaskMeta,
     onFocusTask,
-    onToggleStepDone
+    onToggleStepDone,
+    onEditTask,
+    onEditStep,
+    onToggleStepToday
 }: AssistantViewProps) => {
 
     // --- Agenda State ---
@@ -471,6 +477,15 @@ export const AssistantView = ({
     const handleFocusWrapper = (id: ID) => {
         onFocusTask(id);
         if (profile) updateProfile({ focusCount: profile.focusCount + 1 });
+    };
+
+    const handleToggleTodayWrapper = (id: ID) => {
+        const stepMatch = projects.find(p => p.steps.some(s => s.id === id));
+        if (stepMatch && onToggleStepToday) {
+            onToggleStepToday(stepMatch.id, id);
+        } else {
+            onToggleTaskToday(id);
+        }
     };
 
 
@@ -1280,7 +1295,19 @@ export const AssistantView = ({
                             <div className="text-indigo-300 text-xs font-bold uppercase tracking-wider mb-2">Do This Now</div>
                             {agendaData?.nowTask ? (
                                 <div>
-                                    <div className="text-lg font-semibold text-white">{agendaData.nowTask.title}</div>
+                                    <div
+                                        className="text-lg font-semibold text-white cursor-pointer hover:text-indigo-300 transition-colors"
+                                        onClick={() => {
+                                            const t = agendaData.nowTask!;
+                                            if ((t as any).projectId && onEditStep) {
+                                                onEditStep((t as any).projectId, t.id);
+                                            } else if (onEditTask) {
+                                                onEditTask(t.id);
+                                            }
+                                        }}
+                                    >
+                                        {agendaData.nowTask.title}
+                                    </div>
                                     <div className="text-indigo-200/90 text-sm mt-1 mb-3 italic">"{agendaData.rationale}"</div>
                                     <div className="text-indigo-200/50 text-xs flex gap-2 mb-3">
                                         {agendaData.nowTask.priority && <span>P{agendaData.nowTask.priority}</span>}
@@ -1292,7 +1319,7 @@ export const AssistantView = ({
                                         <button onClick={() => handleTaskDoneWrapper(agendaData.nowTask!.id)} className="px-3 py-1 bg-green-600/20 hover:bg-green-600/40 text-green-300 text-xs rounded border border-green-600/50">Done</button>
                                         <button onClick={() => handleFocusWrapper(agendaData.nowTask!.id)} className="px-3 py-1 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 text-xs rounded border border-indigo-600/50">Focus</button>
                                         <button onClick={() => handleSnoozeWrapper(agendaData.nowTask!.id)} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs rounded border border-slate-600">Snooze</button>
-                                        <button onClick={() => onToggleTaskToday(agendaData.nowTask!.id)} className="px-3 py-1 bg-yellow-600/20 hover:bg-yellow-600/40 text-yellow-300 text-xs rounded border border-yellow-600/50">{agendaData.nowTask.today ? "Un-Today" : "Today"}</button>
+                                        <button onClick={() => handleToggleTodayWrapper(agendaData.nowTask!.id)} className="px-3 py-1 bg-yellow-600/20 hover:bg-yellow-600/40 text-yellow-300 text-xs rounded border border-yellow-600/50">{agendaData.nowTask.today ? "Un-Today" : "Today"}</button>
                                     </div>
                                 </div>
                             ) : (
@@ -1305,8 +1332,17 @@ export const AssistantView = ({
                                 {agendaData?.nextTasks && agendaData.nextTasks.length > 0 ? (
                                     agendaData.nextTasks.map(t => (
                                         <div key={t.id} className="p-3 bg-slate-800/50 rounded border border-slate-700 flex justify-between items-start group">
-                                            <div>
-                                                <div className="font-medium text-slate-200">{t.title}</div>
+                                            <div
+                                                className="cursor-pointer flex-1"
+                                                onClick={() => {
+                                                    if ((t as any).projectId && onEditStep) {
+                                                        onEditStep((t as any).projectId, t.id);
+                                                    } else if (onEditTask) {
+                                                        onEditTask(t.id);
+                                                    }
+                                                }}
+                                            >
+                                                <div className="font-medium text-slate-200 group-hover:text-indigo-300 transition-colors">{t.title}</div>
                                                 <div className="text-xs text-slate-500 flex gap-2 mt-1">
                                                     {t.priority && <span>P{t.priority}</span>}
                                                     {t.dueDate && <span>{t.dueDate}</span>}
@@ -1318,6 +1354,7 @@ export const AssistantView = ({
                                                 <button onClick={() => handleTaskDoneWrapper(t.id)} title="Done" className="p-1 hover:text-green-400 text-slate-400">✅</button>
                                                 <button onClick={() => handleFocusWrapper(t.id)} title="Focus" className="p-1 hover:text-indigo-400 text-slate-400">🎯</button>
                                                 <button onClick={() => handleSnoozeWrapper(t.id)} title="Snooze" className="p-1 hover:text-blue-400 text-slate-400">💤</button>
+                                                <button onClick={() => handleToggleTodayWrapper(t.id)} title={t.today ? "Un-Today" : "Target Today"} className={classNames("p-1 hover:text-yellow-400", t.today ? "text-yellow-400" : "text-slate-400")}>📅</button>
                                             </div>
                                         </div>
                                     ))
