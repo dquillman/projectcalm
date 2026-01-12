@@ -336,6 +336,11 @@ export function toDateSafe(input: any): Date | null {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function toYMDLocal(input: any): string | null {
+  // If input is already YYYY-MM-DD string, return it directly to avoid timezone shift issues
+  if (typeof input === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input)) {
+    return input;
+  }
+
   const d = toDateSafe(input);
   if (!d) return null;
   // Local YYYY-MM-DD

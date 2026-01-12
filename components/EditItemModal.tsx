@@ -11,7 +11,9 @@ export type EditItem = {
   difficulty?: Difficulty;
   dueDate?: string;
   estimatedMinutes?: number;
+  estimatedMinutes?: number;
   notes?: string;
+  recurrence?: 'daily' | 'weekly' | 'monthly';
 };
 
 export function EditItemModal(props: {
@@ -40,6 +42,7 @@ export function EditItemModal(props: {
     return '';
   });
   const [notes, setNotes] = useState(props.value.notes || '');
+  const [recurrence, setRecurrence] = useState<string>(props.value.recurrence || '');
 
   function clampPD(n: number) {
     return Math.max(1, Math.min(5, Math.round(n)));
@@ -60,6 +63,7 @@ export function EditItemModal(props: {
         return Math.round(num * 60);
       })(),
       notes: (notes || '').trim() || undefined,
+      recurrence: (recurrence || undefined) as 'daily' | 'weekly' | 'monthly' | undefined,
     };
     props.onSave(out);
   }
@@ -77,15 +81,15 @@ export function EditItemModal(props: {
         <div className="space-y-3 text-sm">
           <label className="flex items-center gap-2">
             <span className="w-28">Title</span>
-            <input className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1" value={title} onChange={(e)=>setTitle((e.target as HTMLInputElement).value)} />
+            <input className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1" value={title} onChange={(e) => setTitle((e.target as HTMLInputElement).value)} />
           </label>
           <label className="flex items-center gap-2">
-            <input type="checkbox" checked={today} onChange={(e)=>setToday(e.currentTarget.checked)} />
+            <input type="checkbox" checked={today} onChange={(e) => setToday(e.currentTarget.checked)} />
             <span>Mark Today</span>
           </label>
           <div className="grid grid-cols-2 gap-2">
             <label className="flex items-center gap-2"><span className="w-28">Status</span>
-              <select className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1" value={status} onChange={(e)=>setStatus(((e.target as HTMLSelectElement).value || '') as any)}>
+              <select className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1" value={status} onChange={(e) => setStatus(((e.target as HTMLSelectElement).value || '') as any)}>
                 <option value="">(none)</option>
                 <option value="todo">todo</option>
                 <option value="in_progress">in_progress</option>
@@ -94,35 +98,43 @@ export function EditItemModal(props: {
               </select>
             </label>
             <label className="flex items-center gap-2"><span className="w-28">Due date</span>
-              <input type="date" className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1" value={dueDate} onChange={(e)=>setDueDate((e.target as HTMLInputElement).value)} />
+              <input type="date" className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1" value={dueDate} onChange={(e) => setDueDate((e.target as HTMLInputElement).value)} />
             </label>
             <label className="flex items-center gap-2"><span className="w-28">Priority</span>
-              <select className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1" value={priority === '' ? '' : String(priority)} onChange={(e)=>{
+              <select className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1" value={priority === '' ? '' : String(priority)} onChange={(e) => {
                 const v = (e.target as HTMLSelectElement).value; setPriority(v ? Number(v) : '');
               }}>
                 <option value="">(none)</option>
-                {([1,2,3,4,5] as const).map(n => (
+                {([1, 2, 3, 4, 5] as const).map(n => (
                   <option key={n} value={n}>{n} - {priorityLabel(n)}</option>
                 ))}
               </select>
             </label>
             <label className="flex items-center gap-2"><span className="w-28">Difficulty</span>
-              <select className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1" value={difficulty === '' ? '' : String(difficulty)} onChange={(e)=>{
+              <select className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1" value={difficulty === '' ? '' : String(difficulty)} onChange={(e) => {
                 const v = (e.target as HTMLSelectElement).value; setDifficulty(v ? Number(v) : '');
               }}>
                 <option value="">(none)</option>
-                {([1,2,3,4,5] as const).map(n => (
+                {([1, 2, 3, 4, 5] as const).map(n => (
                   <option key={n} value={n}>{n} - {difficultyLabel(n)}</option>
                 ))}
               </select>
             </label>
             <label className="flex items-center gap-2"><span className="w-28">ETC (hours)</span>
-              <input type="number" min="0" step="0.1" className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1" value={etaHours} onChange={(e)=>setEtaHours((e.target as HTMLInputElement).value)} />
+              <input type="number" min="0" step="0.1" className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1" value={etaHours} onChange={(e) => setEtaHours((e.target as HTMLInputElement).value)} />
+            </label>
+            <label className="flex items-center gap-2"><span className="w-28">Repeat</span>
+              <select className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1" value={recurrence} onChange={(e) => setRecurrence((e.target as HTMLSelectElement).value)}>
+                <option value="">(none)</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
             </label>
           </div>
           <label className="flex items-start gap-2">
             <span className="w-28 mt-1">Notes</span>
-            <textarea rows={4} className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1" value={notes} onChange={(e)=>setNotes((e.target as HTMLTextAreaElement).value)} />
+            <textarea rows={4} className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1" value={notes} onChange={(e) => setNotes((e.target as HTMLTextAreaElement).value)} />
           </label>
           <div className="flex items-center gap-2">
             <button className={classNames('px-3 py-1.5 rounded border', 'border-slate-600')} onClick={save}>Save</button>

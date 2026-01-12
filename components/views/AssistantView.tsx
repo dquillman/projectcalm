@@ -1,11 +1,9 @@
 /* @jsxRuntime classic */
 /* @jsx React.createElement */
-// @ts-ignore
-const { React } = window;
-const { useState, useMemo, useEffect, useRef } = React;
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 
 import { btnBase, btnNeutral, btnPositive, cardBase, cardTone, subtleText, strongText } from "../../lib/styles";
-import { daysUntilDue, priorityLabel, isOverdue, isDueToday, compareDue, toYMDLocal, classNames } from "../../lib/utils";
+import { daysUntilDue, priorityLabel, isOverdue, isDueToday, compareDue, toYMDLocal, classNames, sanitizeForFirestore } from "../../lib/utils";
 import { Task, Project, ID } from "../../lib/types";
 import { db, auth } from "../../lib/firebase";
 import { doc, getDoc, setDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
@@ -20,7 +18,7 @@ type Message = {
 };
 
 // Types for Voice
-type VoicePreset = 'natural-female' | 'natural-male' | 'scifi' | 'custom' | 'hal-mode';
+type VoicePreset = 'natural-female' | 'natural-male' | 'scifi' | 'custom' | 'hal-mode' | 'spicoli';
 
 interface VoiceSettings {
     enabled: boolean;
@@ -32,8 +30,8 @@ interface VoiceSettings {
 }
 
 const DEFAULT_SETTINGS: VoiceSettings = {
-    enabled: false,
-    preset: 'natural-female',
+    enabled: true,
+    preset: 'spicoli',
     voiceURI: 'auto',
     rate: 1.0,
     pitch: 1.0,
@@ -48,6 +46,7 @@ interface AssistantViewProps {
     onToggleTaskToday: (id: ID) => void;
     onUpdateTaskMeta: (id: ID, patch: Partial<Task>) => void;
     onFocusTask: (id: ID) => void;
+    onToggleStepDone?: (projectId: ID, stepId: ID) => void;
 }
 
 // --- Memory & Context Types ---
@@ -78,8 +77,51 @@ type RecommendationContext = {
     fatigueScore?: number;
 };
 
+// --- Time Blocking Types ---
+export type TimeBlockStatus = 'planned' | 'done' | 'skipped';
+export type BlockType = 'focus' | 'break' | 'lunch' | 'quiet';
+
+export interface TimeBlock {
+    start: string; // HH:MM
+    end: string;   // HH:MM
+    type: BlockType;
+    taskId?: string;
+    taskTitle?: string; // Cached title
+    projectId?: string; // For Project Steps
+    status: TimeBlockStatus;
+    partIndex?: number; // If split across blocks
+}
+
+export interface DailyPlan {
+    dayKey: string;
+    blocks: TimeBlock[];
+}
+
+export interface SchedulingPreferences {
+    workDayStart: string;
+    workDayEnd: string;
+    focusBlockMinutes: number;
+    breakMinutes: number;
+    lunchStart: string;
+    lunchMinutes: number;
+    quietHoursStart?: string;
+    quietHoursEnd?: string;
+    allowEveningBlocks: boolean;
+}
+
+const DEFAULT_SCHED_PREFS: SchedulingPreferences = {
+    workDayStart: "09:00",
+    workDayEnd: "17:00",
+    focusBlockMinutes: 50,
+    breakMinutes: 10,
+    lunchStart: "12:00",
+    lunchMinutes: 45,
+    allowEveningBlocks: false
+};
+
+
 // --- V3 Recommendation Engine (Adapted) ---
-function recommendNextTasks(tasks: Task[], projects: Project[], overrideTaskId?: string | null, context?: RecommendationContext): { now: Task | null; next: Task[]; rationale: string } {
+function recommendNextTasks(tasks: Task[], projects: Project[], overrideTaskId?: string | null, context?: RecommendationContext): { now: Task | null; next: Task[]; allSorted: Task[]; rationale: string } {
     // 1. Filter candidates
     const projectSteps = projects.flatMap(p => p.steps.map(s => ({ ...s, title: `${p.name}: ${s.title}`, projectId: p.id } as Task)));
     const allItems = [...tasks, ...projectSteps];
@@ -168,9 +210,12 @@ function recommendNextTasks(tasks: Task[], projects: Project[], overrideTaskId?:
             return sortFn(a, b);
         });
 
-    const next = allSorted.slice(0, 5);
+    // Calculate how many items are "important" (Overdue or Today)
+    const importantCount = allSorted.filter(t => isOverdue(t.dueDate) || t.today || isDueToday(t.dueDate)).length;
+    // Show at least 5 items, but expand to show all important ones if there are more
+    const next = allSorted.slice(0, Math.max(5, importantCount));
 
-    return { now, next, rationale };
+    return { now, next, allSorted, rationale };
 }
 
 export const AssistantView = ({
@@ -180,7 +225,8 @@ export const AssistantView = ({
     onToggleTaskDone,
     onToggleTaskToday,
     onUpdateTaskMeta,
-    onFocusTask
+    onFocusTask,
+    onToggleStepDone
 }: AssistantViewProps) => {
 
     // --- Agenda State ---
@@ -191,6 +237,10 @@ export const AssistantView = ({
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [user, setUser] = useState(auth.currentUser);
 
+    // Voice Input State
+    const [isListening, setIsListening] = useState(false);
+    const recognitionRef = useRef<any>(null);
+
 
     // Debug UI State
     const [debugLog, setDebugLog] = useState<string[]>([]);
@@ -198,6 +248,12 @@ export const AssistantView = ({
         console.log("DEBUG:", msg);
         setDebugLog(prev => [msg, ...prev].slice(0, 5));
     };
+
+    // --- Time Blocking State ---
+    const [dailyPlan, setDailyPlan] = useState<DailyPlan | null>(null);
+    const [schedPrefs, setSchedPrefs] = useState<SchedulingPreferences>(DEFAULT_SCHED_PREFS);
+    const [showSchedSettings, setShowSchedSettings] = useState(false);
+    const [planError, setPlanError] = useState<string | null>(null);
 
     // Auth Listener
     useEffect(() => {
@@ -215,17 +271,17 @@ export const AssistantView = ({
             return;
         }
         log(`Sync: Starting ${user.uid.slice(0, 4)}...`);
-        const uid = user.uid;
-        const ref = doc(db, "user_profiles", uid);
+        const todayKey = toYMDLocal(new Date());
 
-        const unsub = onSnapshot(ref, (snap) => {
-            log(`Sync: Snapshot (Exists: ${snap.exists()})`);
+        // 1. Profile Listener
+        const profileRef = doc(db, "user_profiles", user.uid);
+        const unsubProfile = onSnapshot(profileRef, (snap) => {
             if (snap.exists()) {
-                const data = snap.data() as UserProfile;
-                const todayKey = toYMDLocal(new Date());
+                const data = snap.data();
+                // Check if day changed
                 if (data.dayKey !== todayKey) {
-                    // Reset Logic
-                    setDoc(ref, {
+                    // Reset daily counters
+                    setDoc(profileRef, {
                         dayKey: todayKey,
                         completedCount: 0,
                         snoozedCount: 0,
@@ -238,7 +294,49 @@ export const AssistantView = ({
                         updatedAt: serverTimestamp()
                     } as any, { merge: true });
                 } else {
-                    setProfile(data);
+                    if (data) {
+                        setProfile(data as UserProfile);
+                        // Load scheduling preferences from profile if they exist
+                        const prefs = { ...DEFAULT_SCHED_PREFS };
+
+                        const sanitizeTime = (t: string) => {
+                            // Ensure HH:MM (24h)
+                            // If looks like 9:00 AM, parse it.
+                            if (!t) return "09:00";
+                            if (t.match(/^\d{2}:\d{2}$/)) return t;
+                            if (t.match(/^\d{1}:\d{2}$/)) return `0${t}`;
+
+                            // Try simple parse
+                            try {
+                                // limited AM/PM support for legacy data
+                                const lower = t.toLowerCase();
+                                if (lower.includes('pm') && !lower.includes('12')) {
+                                    const parts = lower.replace('pm', '').trim().split(':');
+                                    let h = parseInt(parts[0]);
+                                    if (h < 12) h += 12;
+                                    return `${h.toString().padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+                                }
+                                if (lower.includes('am')) {
+                                    const parts = lower.replace('am', '').trim().split(':');
+                                    let h = parseInt(parts[0]);
+                                    if (h === 12) h = 0;
+                                    return `${h.toString().padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+                                }
+                            } catch (e) {
+                                return "09:00";
+                            }
+                            return t;
+                        };
+
+                        if (data.workDayStart) prefs.workDayStart = sanitizeTime(data.workDayStart);
+                        if (data.workDayEnd) prefs.workDayEnd = sanitizeTime(data.workDayEnd);
+                        if (data.focusBlockMinutes) prefs.focusBlockMinutes = data.focusBlockMinutes;
+                        if (data.breakMinutes) prefs.breakMinutes = data.breakMinutes;
+                        if (data.lunchStart) prefs.lunchStart = sanitizeTime(data.lunchStart);
+                        if (data.lunchMinutes) prefs.lunchMinutes = data.lunchMinutes;
+                        if (data.allowEveningBlocks !== undefined) prefs.allowEveningBlocks = data.allowEveningBlocks;
+                        setSchedPrefs(prefs);
+                    }
                 }
             } else {
                 log("Sync: Creating Defaults...");
@@ -249,8 +347,8 @@ export const AssistantView = ({
                     voiceEnabled: false,
                     voicePreset: 'natural-female',
                     proactiveEnabled: false,
-                    rate: 1.0,
-                    pitch: 1.0,
+                    rate: 1,
+                    pitch: 1,
                     completedCount: 0,
                     snoozedCount: 0,
                     focusCount: 0,
@@ -260,14 +358,27 @@ export const AssistantView = ({
                     prefersShortTasks: false,
                     interruptionTolerance: 'high'
                 };
-                setDoc(ref, defaults).then(() => log("Profile Created"));
+                setDoc(profileRef, defaults);
+                setProfile(defaults);
             }
-        }, (err) => {
-            console.error(err);
-            log(`Sync Error: ${err.message}`);
         });
-        return () => unsub();
-    }, [user]);
+
+        // 2. Daily Plan Listener
+        const planId = `${user.uid}_${todayKey}`;
+        const planRef = doc(db, "daily_plans", planId);
+        const unsubPlan = onSnapshot(planRef, (snap) => {
+            if (snap.exists()) {
+                setDailyPlan(snap.data() as DailyPlan);
+            } else {
+                setDailyPlan(null);
+            }
+        });
+
+        return () => {
+            unsubProfile();
+            unsubPlan();
+        };
+    }, [user, userDisplayName]);
 
     // Derived Context for Recommendation
     const recContext: RecommendationContext = useMemo(() => ({
@@ -322,7 +433,8 @@ export const AssistantView = ({
             newPatch = { ...newPatch, fatigueScore: fatigue, prefersShortTasks: prefersShort, interruptionTolerance: tolerance };
         }
 
-        setDoc(ref, newPatch, { merge: true });
+        setDoc(ref, sanitizeForFirestore(newPatch), { merge: true })
+            .catch(err => console.error("Profile update failed:", err));
     };
 
     // --- Actions ---
@@ -334,9 +446,19 @@ export const AssistantView = ({
     };
 
     const handleTaskDoneWrapper = (id: ID) => {
-        onToggleTaskDone(id);
-        const t = tasks.find(x => x.id === id);
-        if (t && !t.done && profile) {
+        // 1. Check if it's a project step
+        const stepMatch = projects.find(p => p.steps.some(s => s.id === id));
+        if (stepMatch && onToggleStepDone) {
+            onToggleStepDone(stepMatch.id, id);
+        } else {
+            // 2. Regular task
+            onToggleTaskDone(id);
+        }
+
+        // Profile updates (simplified, generic count)
+        const t = tasks.find(x => x.id === id); // This only finds regular tasks for profile stats? 
+        // Actually, we should count step completion too.
+        if (profile) {
             updateProfile({ completedCount: profile.completedCount + 1 });
         }
     };
@@ -349,6 +471,257 @@ export const AssistantView = ({
     const handleFocusWrapper = (id: ID) => {
         onFocusTask(id);
         if (profile) updateProfile({ focusCount: profile.focusCount + 1 });
+    };
+
+
+    // --- Time Blocking Logic ---
+
+    const saveDailyPlan = async (plan: DailyPlan) => {
+        console.log("saveDailyPlan called. User:", user?.uid);
+        if (!user) {
+            console.error("saveDailyPlan abort: no user");
+            return;
+        }
+        setPlanError(null);
+        try {
+            // Sanitize entire plan to remove undefined values recursively
+            const safePlan = sanitizeForFirestore({ ...plan });
+
+            const planId = `${user.uid}_${plan.dayKey}`;
+            await setDoc(doc(db, "daily_plans", planId), safePlan);
+        } catch (err: any) {
+            console.error("Save Plan Error:", err);
+            setPlanError(err.message || "Failed to save plan");
+        }
+    };
+
+    const updateSchedPrefs = async (patch: Partial<SchedulingPreferences>) => {
+        if (!user) return;
+        const newPrefs = { ...schedPrefs, ...patch };
+        setSchedPrefs(newPrefs);
+        // Persist to user_profile
+        await setDoc(doc(db, "user_profiles", user.uid), sanitizeForFirestore(patch), { merge: true })
+            .catch(err => console.error("SchedPrefs update failed:", err));
+    };
+
+    const generatePlan = async () => {
+        if (!user) return;
+        const todayKey = toYMDLocal(new Date());
+
+        // 1. Parse Times
+        const hmToMin = (hm: string) => {
+            const [h, m] = hm.split(':').map(Number);
+            return h * 60 + m;
+        };
+        const minToHm = (m: number) => {
+            const h = Math.floor(m / 60);
+            const min = m % 60;
+            return `${h.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+        };
+
+        const workStart = hmToMin(schedPrefs.workDayStart);
+        const workEnd = hmToMin(schedPrefs.workDayEnd);
+        const lunchStart = hmToMin(schedPrefs.lunchStart);
+        const lunchEnd = lunchStart + schedPrefs.lunchMinutes;
+
+        // 2. Candidates
+        const { now: nowTask, allSorted } = recommendNextTasks(tasks, projects, null, recContext);
+        // Include 'now' task at the start, as allSorted excludes it.
+        const candidates = nowTask ? [nowTask, ...allSorted] : allSorted;
+        // Use all candidates for scheduling, not just top 5 (which is for UI display)
+
+        const newBlocks: TimeBlock[] = [];
+        // Smart Start: If today, avoid scheduling in the past.
+        const now = new Date();
+        const nowMin = now.getHours() * 60 + now.getMinutes();
+        const snapNow = Math.ceil(nowMin / 5) * 5;
+        const realTodayKey = toYMDLocal(new Date());
+        const isToday = todayKey === realTodayKey;
+
+        console.log("Smart Schedule Debug:", { todayKey, realTodayKey, isToday, nowMin, snapNow, workStart });
+
+        let cursor = isToday ? Math.max(workStart, snapNow) : workStart;
+        console.log("Cursor starting at:", cursor);
+
+        // Helper to add block
+        const addBlock = (start: number, duration: number, type: BlockType, task?: Task, part?: number) => {
+            const end = start + duration;
+
+            const block: TimeBlock = {
+                start: minToHm(start),
+                end: minToHm(end),
+                type,
+                status: 'planned',
+                ...(task?.id ? { taskId: task.id } : {}),
+                ...(task?.title ? { taskTitle: task.title } : {}),
+                ...((task as any)?.projectId ? { projectId: (task as any).projectId } : {}),
+                ...(typeof part === 'number' ? { partIndex: part } : {})
+            };
+
+            newBlocks.push(block);
+            return end;
+        };
+
+        // 3. Scheduling Loop
+        let taskIndex = 0;
+
+        while (cursor < workEnd) {
+            // Check Lunch
+            // If we are at or past lunch start (and haven't passed lunch end), add lunch.
+            if (cursor >= lunchStart && cursor < lunchEnd) {
+                cursor = addBlock(cursor, schedPrefs.lunchMinutes, 'lunch');
+                continue;
+            }
+
+            // If the standard focus block would overshoot lunch start:
+            if (cursor < lunchStart && (cursor + schedPrefs.focusBlockMinutes > lunchStart)) {
+
+                const timeUntilLunch = lunchStart - cursor;
+
+                // If we have a decent chunk of time (e.g. >= 30 mins), schedule a short focus task
+                if (timeUntilLunch >= 30) {
+                    // Get a task if available
+                    if (taskIndex < candidates.length) {
+                        const task = candidates[taskIndex];
+                        addBlock(cursor, timeUntilLunch, 'focus', task);
+                        taskIndex++;
+                    } else {
+                        addBlock(cursor, timeUntilLunch, 'focus'); // Emply focus
+                    }
+                    cursor += timeUntilLunch; // Now at LunchStart
+                    // Continue loop -> next iteration will trigger the "cursor >= lunchStart" check above
+                    continue;
+                } else {
+                    // Too short for focus, just break/prep for lunch
+                    // (or if exactly 0 gap, this adds 0 length block? No, gap > 0 check implied by overshoot check + previous lunch check fail)
+                    if (timeUntilLunch > 0) {
+                        addBlock(cursor, timeUntilLunch, 'break');
+                        cursor += timeUntilLunch;
+                    }
+                    continue;
+                }
+            }
+
+            // Add Focus Block
+            // Get next task
+            if (taskIndex < candidates.length) {
+                const task = candidates[taskIndex];
+                const est = task.estimatedMinutes || 25;
+
+                // If task is huge, we split it. If small, we fit it.
+                // Current logic: One task per block.
+                // Improvement: If task < block, maybe stack? user asked for simple logic first.
+
+                // Let's assume 1 task = 1 focus block for now, unless task > block.
+                let remainingEst = est;
+                let parts = 1;
+
+                if (est > schedPrefs.focusBlockMinutes) {
+                    // Multi-block task
+                    // We will schedule one part now.
+                    // IMPORTANT: We do NOT increment taskIndex yet if parts remain, 
+                    // BUT for simplicity of this v1, let's just schedule "Part 1" and move on?
+                    // Or better: consume slots.
+
+                    // Implementation: consume ONE block for this task. 
+                    // Label it Part X.
+                    // The loop continues. If we want to schedule the REST of the task, we need to keep it as candidate.
+                    // Let's just strictly simply: 1 slot = 1 task from list. 
+                    // If task > slot, we label it (big task).
+                    addBlock(cursor, schedPrefs.focusBlockMinutes, 'focus', task);
+                    // Add Break
+                    cursor += schedPrefs.focusBlockMinutes;
+                    if (cursor < workEnd && cursor !== lunchStart) {
+                        cursor = addBlock(cursor, schedPrefs.breakMinutes, 'break');
+                    }
+                    taskIndex++;
+                } else {
+                    // Task fits
+                    // FIX: Actually schedule the task!
+                    const duration = Math.max(15, est); // Minimum 15 mins
+                    addBlock(cursor, duration, 'focus', task);
+                    cursor += duration;
+
+                    if (cursor < workEnd && cursor !== lunchStart) {
+                        cursor = addBlock(cursor, schedPrefs.breakMinutes, 'break');
+                    }
+                    taskIndex++;
+                }
+
+            } else {
+                // No more tasks, but day isn't over.
+                // Add empty focus block "Deep Work / Free Focus"
+                addBlock(cursor, schedPrefs.focusBlockMinutes, 'focus');
+
+                cursor += schedPrefs.focusBlockMinutes;
+                if (cursor < workEnd && cursor !== lunchStart) {
+                    cursor = addBlock(cursor, schedPrefs.breakMinutes, 'break');
+                }
+            }
+        }
+
+        const plan: DailyPlan = { dayKey: todayKey, blocks: newBlocks };
+        await saveDailyPlan(plan);
+        speak(`I've blocked out your day with ${newBlocks.filter(b => b.type === 'focus').length} focus sessions.`);
+        speak(`I've blocked out your day with ${newBlocks.filter(b => b.type === 'focus').length} focus sessions.`);
+    };
+
+    const handleSwapBlock = async (index: number) => {
+        if (!dailyPlan || !user) return;
+
+        // 1. Get current candidates again
+        const { allSorted: candidates } = recommendNextTasks(tasks, projects, null, recContext);
+
+        // 2. Find a task NOT in the current plan
+        const currentTaskIds = new Set(dailyPlan.blocks.map(b => b.taskId).filter(Boolean));
+        const candidate = candidates.find(t => !currentTaskIds.has(t.id));
+
+        if (!candidate) {
+            alert("No other candidate tasks available to swap in!");
+            return;
+        }
+
+        // 3. Update the block
+        const newBlocks = [...dailyPlan.blocks];
+        // Ensure we preserve timing, just swap task info
+        newBlocks[index] = {
+            ...newBlocks[index],
+            taskId: candidate.id,
+            taskTitle: candidate.title,
+            status: 'planned',
+            type: 'focus', // Force type to focus
+            partIndex: undefined // Reset part index if it was a split task (simplification)
+        };
+
+        const newPlan = { ...dailyPlan, blocks: newBlocks };
+        setDailyPlan(newPlan); // Optimistic
+        await saveDailyPlan(newPlan); // Persist
+    };
+
+    const handleClearBlock = async (index: number) => {
+        if (!dailyPlan || !user) return;
+
+        const newBlocks = [...dailyPlan.blocks];
+        const block = newBlocks[index];
+
+        // Keep the time slot, but remove task info
+        // We need to use conditional spread logic in save, but here we can just set undefined
+        // actually the 'TimeBlock' type allows optional taskId.
+        delete block.taskId;
+        delete block.taskTitle;
+        delete block.partIndex;
+        block.status = 'planned'; // Reset status if it was stuck
+
+        const newPlan = { ...dailyPlan, blocks: newBlocks };
+        setDailyPlan(newPlan);
+        await saveDailyPlan(newPlan);
+    };
+
+    const clearPlan = async () => {
+        if (!user) return;
+        await setDoc(doc(db, "daily_plans", `${user.uid}_${toYMDLocal(new Date())}`), { blocks: [] }, { merge: true });
+        // effectively clearing blocks or deleting doc. empty blocks is fine.
+        speak("Time blocks cleared.");
     };
 
     // --- Voice Logic (Synced) ---
@@ -374,13 +747,21 @@ export const AssistantView = ({
             return {
                 enabled: profile.voiceEnabled,
                 preset: profile.voicePreset,
-                voiceURI: 'auto', // Keep simple for now, or add to profile if needed (schema said preset only, but we can add uri)
+                voiceURI: 'auto',
                 rate: profile.rate,
                 pitch: profile.pitch,
                 proactiveEnabled: profile.proactiveEnabled
             };
         }
         return DEFAULT_SETTINGS;
+    }, [profile]);
+
+    // Migration: Upgrade legacy default to Spicoli
+    useEffect(() => {
+        if (profile && profile.voicePreset === 'natural-female') {
+            console.log("Migrating persona to Spicoli...");
+            updateProfile({ voicePreset: 'spicoli' });
+        }
     }, [profile]);
 
     const updateVoiceSettings = (patch: Partial<VoiceSettings>) => {
@@ -403,11 +784,6 @@ export const AssistantView = ({
 
         if (preset === 'hal-mode') {
             // STRICT MALE VOICE SEARCH
-            // 1. Google US English (often best/neutral male)
-            // 2. Microsoft David (Standard Windows Male)
-            // 3. Any "Google" Male
-            // 4. Any "US" Male
-            // 5. Any Male voice at all
             return voices.find(v => v.name === 'Google US English') ||
                 voices.find(v => v.name.includes('Microsoft David')) ||
                 voices.find(v => lowerName(v).includes('google') && lowerName(v).includes('male')) ||
@@ -428,9 +804,11 @@ export const AssistantView = ({
                 voices[0] || null;
         }
 
-        if (preset === 'natural-male' || preset === 'scifi') {
+        if (preset === 'natural-male' || preset === 'scifi' || preset === 'spicoli') {
             return voices.find(v => isPremium(v) && lowerName(v).includes('male')) ||
                 voices.find(v => lowerName(v).includes('male')) ||
+                voices.find(v => v.name.includes('David')) || // Windows default male
+                voices.find(v => v.name.includes('Google US English')) || // Common chrome male
                 voices[0] || null;
         }
 
@@ -462,7 +840,15 @@ export const AssistantView = ({
 
         // Helper to setup utterance
         const createUtterance = (t: string) => {
-            const u = new SpeechSynthesisUtterance(t);
+            let processedText = t;
+
+            // HAL Mode Text Transform
+            if (voiceSettings.preset === 'hal-mode') {
+                // Add pauses for comma/periods to make it slower/measured
+                processedText = processedText.replace(/, /g, ', ... ').replace(/\. /g, '. ... ');
+            }
+
+            const u = new SpeechSynthesisUtterance(processedText);
             if (targetVoice) u.voice = targetVoice;
             u.rate = voiceSettings.rate;
             u.pitch = voiceSettings.pitch;
@@ -520,6 +906,8 @@ export const AssistantView = ({
         else if (p === 'natural-male') updates = { ...updates, rate: 1.0, pitch: 1.0 }; // More natural pitch
         else if (p === 'scifi') updates = { ...updates, rate: 0.9, pitch: 0.85 };
         else if (p === 'hal-mode') updates = { ...updates, rate: 0.85, pitch: 0.6 }; // Deep and slow
+        else if (p === 'hal-mode') updates = { ...updates, rate: 0.85, pitch: 0.6 }; // Deep and slow
+        else if (p === 'spicoli') updates = { ...updates, rate: 0.9, pitch: 0.9 }; // Relaxed
         updateVoiceSettings(updates);
     };
 
@@ -536,7 +924,7 @@ export const AssistantView = ({
         if (last && last.role === 'assistant') {
             const now = Date.now();
             if (now - last.timestamp < 2000) {
-                speak(last.spokenText || last.text);
+                speak(last.spokenText || last.text || '');
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -563,6 +951,13 @@ export const AssistantView = ({
         // 2. First Move
         if (now) {
             msg += `\n**First Move:** ${now.title}\nClick Focus to start.\n`;
+        }
+
+        if (voiceSettings.preset === 'spicoli') {
+            msg = msg.replace("Morning Check-In", "Morning Surf Report 🌊")
+                .replace("Top Priorities", "Big Waves to Catch")
+                .replace("First Move", "Drop In on This")
+                .replace("Click Focus to start", "Paddle into it, dude.");
         }
 
         // 3. Risks
@@ -603,6 +998,13 @@ export const AssistantView = ({
             msg += `• Fatigue Score: ${profile.fatigueScore} (Take it easy!)\n`;
         }
 
+        if (voiceSettings.preset === 'spicoli') {
+            msg = msg.replace("Evening Review", "Sunset Session 🌅")
+                .replace("Wins Today", "Totally Righteous Wins")
+                .replace("Focus Sessions", "Tubular Sessions")
+                .replace("Fatigue Score", "Wipeout Level");
+        }
+
         // 2. Carryover
         if (carryover.length > 0) {
             msg += `\n**Carryover (${carryover.length}):**\n`;
@@ -616,13 +1018,74 @@ export const AssistantView = ({
         setMessages(prev => [...prev, botMsg]);
     };
 
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            stopSpeaking();
+            if (responseTimeoutRef.current) clearTimeout(responseTimeoutRef.current);
+            if (recognitionRef.current) recognitionRef.current.stop();
+        };
+    }, []);
+
+    const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const stopListening = () => {
+        if (recognitionRef.current) {
+            recognitionRef.current.stop();
+            recognitionRef.current = null;
+        }
+        setIsListening(false);
+    };
+
+    const toggleListening = () => {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("Voice input not supported in this browser.");
+            return;
+        }
+
+        if (isListening) {
+            stopListening();
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+
+        recognition.onstart = () => setIsListening(true);
+        recognition.onend = () => setIsListening(false);
+        recognition.onerror = (event: any) => {
+            console.error("Speech recognition error", event.error);
+            setIsListening(false);
+        };
+
+        recognition.onresult = (event: any) => {
+            let finalTranscript = '';
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    finalTranscript += event.results[i][0].transcript;
+                }
+            }
+            if (finalTranscript) {
+                setInputText(prev => prev + (prev ? " " : "") + finalTranscript);
+            }
+        };
+
+        recognitionRef.current = recognition;
+        recognition.start();
+    };
+
     const handleSendMessage = (text: string) => {
         if (!text.trim()) return;
         const newMsg: Message = { id: Date.now().toString(), role: "user", text: text, timestamp: Date.now() };
         setMessages(prev => [...prev, newMsg]);
         setInputText("");
 
-        setTimeout(() => {
+        if (responseTimeoutRef.current) clearTimeout(responseTimeoutRef.current);
+
+        responseTimeoutRef.current = setTimeout(() => {
             let responseText = "";
             const lower = text.toLowerCase().trim();
 
@@ -633,9 +1096,13 @@ export const AssistantView = ({
                 const found = tasks.find(t => !t.done && !t.deletedAt && t.title.toLowerCase().includes(query));
                 if (found) {
                     setForcedNowTaskId(found.id);
-                    responseText = `Okay, I've moved "${found.title}" to your active task.`;
+                    responseText = voiceSettings.preset === 'spicoli'
+                        ? `Right on! I've moved "${found.title}" to your board. Let's ride it.`
+                        : `Okay, I've moved "${found.title}" to your active task.`;
                 } else {
-                    responseText = `I couldn't find a task matching "${query}".`;
+                    responseText = voiceSettings.preset === 'spicoli'
+                        ? `Bummer, dude. I couldn't find a task matching "${query}".`
+                        : `I couldn't find a task matching "${query}".`;
                 }
             }
             else if (lower.includes("morning check")) { runMorningCheckIn(); return; }
@@ -643,12 +1110,18 @@ export const AssistantView = ({
             else if (lower.includes("what should i do next") || lower.includes("what next")) {
                 const { now, rationale } = recommendNextTasks(tasks, projects, forcedNowTaskId, recContext);
                 if (now) {
-                    responseText = `${rationale} I recommend you start with "${now.title}". Click Focus to start.`;
+                    responseText = voiceSettings.preset === 'spicoli'
+                        ? `${rationale} Dude, you should totally shred on "${now.title}". Click Focus, man.`
+                        : `${rationale} I recommend you start with "${now.title}". Click Focus to start.`;
                 } else {
-                    responseText = "You have no tasks pending! Enjoy your free time.";
+                    responseText = voiceSettings.preset === 'spicoli'
+                        ? "Whoa, clear waters! No tasks pending. Go grab some tasty waves!"
+                        : "You have no tasks pending! Enjoy your free time.";
                 }
             }
-            else if (lower.includes("good morning")) { responseText = `Good morning ${userDisplayName || 'Dave'}`; }
+            else if (lower.includes("good morning")) {
+                responseText = voiceSettings.preset === 'spicoli' ? `Aloha, ${userDisplayName || 'dude'}!` : `Good morning ${userDisplayName || 'Dave'}`;
+            }
             else if (lower.includes("clear memory")) {
                 if (window.confirm("Are you sure you want to clear your assistant memory? This resets all stats.")) {
                     if (auth.currentUser) {
@@ -679,7 +1152,11 @@ export const AssistantView = ({
                     responseText = "Cancelled.";
                 }
             }
-            else { responseText = `I heard: "${text}". I'm listening!`; }
+            else {
+                responseText = voiceSettings.preset === 'spicoli'
+                    ? `Whoa, I heard: "${text}". I'm all ears, bud.`
+                    : `I heard: "${text}". I'm listening!`;
+            }
 
             const botMsg: Message = { id: (Date.now() + 1).toString(), role: "assistant", text: responseText, timestamp: Date.now() };
             setMessages(prev => [...prev, botMsg]);
@@ -789,13 +1266,7 @@ export const AssistantView = ({
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-[calc(100vh-200px)] min-h-[400px] overflow-hidden relative">
             {/* DEBUG OVERLAY */}
-            <div className="absolute top-2 right-2 flex flex-col items-end gap-1 pointer-events-none z-50">
-                {debugLog.map((msg, i) => (
-                    <div key={i} className="bg-slate-900/90 text-white text-[10px] px-2 py-1 rounded border border-slate-700 font-mono">
-                        {msg}
-                    </div>
-                ))}
-            </div>
+
             {/* AGENDA */}
             <div className={classNames("flex flex-col gap-4 p-4 rounded-xl border border-slate-700/50 bg-slate-800/20 overflow-y-auto")}>
                 <h2 className={classNames("text-xl font-bold", strongText)}>Daily Agenda</h2>
@@ -815,6 +1286,7 @@ export const AssistantView = ({
                                         {agendaData.nowTask.priority && <span>P{agendaData.nowTask.priority}</span>}
                                         {agendaData.nowTask.dueDate && <span>Due: {agendaData.nowTask.dueDate}</span>}
                                         {agendaData.nowTask.today && <span className="text-emerald-400">★ Today</span>}
+                                        {isOverdue(agendaData.nowTask.dueDate) && <span className="text-rose-400 font-bold">Overdue</span>}
                                     </div>
                                     <div className="flex gap-2">
                                         <button onClick={() => handleTaskDoneWrapper(agendaData.nowTask!.id)} className="px-3 py-1 bg-green-600/20 hover:bg-green-600/40 text-green-300 text-xs rounded border border-green-600/50">Done</button>
@@ -839,6 +1311,7 @@ export const AssistantView = ({
                                                     {t.priority && <span>P{t.priority}</span>}
                                                     {t.dueDate && <span>{t.dueDate}</span>}
                                                     {isOverdue(t.dueDate) && <span className="text-rose-400">Overdue</span>}
+                                                    {t.today && <span className="text-emerald-400">Today</span>}
                                                 </div>
                                             </div>
                                             <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
@@ -892,6 +1365,9 @@ export const AssistantView = ({
                 </div>
                 <div className="p-3 border-t border-slate-700/50 bg-slate-900/30">
                     <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); handleSendMessage(inputText); }}>
+                        <button type="button" onClick={toggleListening} className={classNames("p-2 rounded-lg transition-colors border border-transparent", isListening ? "bg-rose-500/20 text-rose-400 animate-pulse border-rose-500/50" : "text-slate-400 hover:text-white hover:bg-slate-700/50")} title={isListening ? "Stop Listening" : "Voice Input"}>
+                            {isListening ? "🛑" : "🎤"}
+                        </button>
                         <input className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500" placeholder="Type a message..." value={inputText} onChange={e => setInputText(e.target.value)} />
                         <button type="submit" className={classNames(btnBase, btnPositive, "px-4")}>Send</button>
                     </form>
@@ -902,7 +1378,7 @@ export const AssistantView = ({
             {/* AVATAR / VOICE PANEL */}
             <div className={classNames("flex flex-col gap-4 p-4 rounded-xl border border-slate-700/50 bg-slate-800/20 overflow-y-auto")}>
                 <div className="flex justify-between items-center">
-                    <h2 className={classNames("text-xl font-bold", strongText)}>Avatar & Memory</h2>
+                    <h2 className={classNames("text-xl font-bold", strongText)}>Avatar & Voice</h2>
                     <button onClick={() => { updateVoiceSettings({ enabled: !voiceSettings.enabled }); if (voiceSettings.enabled) stopSpeaking(); }} className={`text-xs px-2 py-1 rounded border ${voiceSettings.enabled ? 'border-green-600 bg-green-900/30 text-green-400' : 'border-slate-600 bg-slate-800 text-slate-400'}`}>
                         {voiceSettings.enabled ? 'ON' : 'OFF'}
                     </button>
@@ -919,7 +1395,11 @@ export const AssistantView = ({
                         {isSpeaking && voiceSettings.preset !== 'hal-mode' && <div className="absolute -inset-2 rounded-full border-2 border-indigo-400/50 animate-ping"></div>}
 
                         <div className={`absolute inset-1 rounded-full flex items-center justify-center z-10 overflow-hidden relative ${voiceSettings.preset === 'hal-mode' ? 'bg-black' : 'bg-slate-900'}`}>
-                            {voiceSettings.preset === 'hal-mode' ? (
+                            {voiceSettings.preset === 'spicoli' ? (
+                                <div className={`relative w-full h-full rounded-full overflow-hidden border-2 border-indigo-500/50 ${isSpeaking ? 'animate-[pulse_0.5s_ease-in-out_infinite] scale-105' : ''}`}>
+                                    <img src="spicoli.png" alt="Spicoli" className="w-full h-full object-cover" />
+                                </div>
+                            ) : voiceSettings.preset === 'hal-mode' ? (
                                 <div className="relative flex items-center justify-center">
                                     {/* Outer Glow */}
                                     <div className={`absolute w-16 h-16 rounded-full bg-red-600/20 blur-xl ${isSpeaking ? 'animate-pulse opacity-100' : 'opacity-50'}`}></div>
@@ -939,6 +1419,21 @@ export const AssistantView = ({
                             {isSpeaking && voiceSettings.preset !== 'hal-mode' && <div className="absolute bottom-8 w-8 h-1 bg-white/20 rounded-full animate-pulse"></div>}
                         </div>
                     </div>
+
+                    {/* Spicoli Debug / Force Switch */}
+                    <div className="text-xs text-slate-500 mb-2 font-mono">
+                        Preset: {voiceSettings.preset}<br />
+                        Voices: {voices.length}<br />
+                        Speaking: {isSpeaking ? 'YES' : 'NO'}
+                    </div>
+                    {voiceSettings.preset !== 'spicoli' && (
+                        <button
+                            onClick={() => applyPreset('spicoli')}
+                            className="text-xs bg-indigo-600 text-white px-2 py-1 rounded mb-4 hover:bg-indigo-500"
+                        >
+                            Force Spicoli Mode
+                        </button>
+                    )}
 
                     <div className="h-8 flex items-end gap-1 mb-2">
                         {isSpeaking ? (
@@ -991,6 +1486,160 @@ export const AssistantView = ({
                     </div>
                 </div>
 
+                {/* TIME BLOCKING PANEL */}
+                <div className="p-3 bg-slate-900/30 rounded-lg border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between">
+                        <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Time Blocking</div>
+                        <button onClick={() => setShowSchedSettings(!showSchedSettings)} className="text-[10px] text-slate-400 underline opacity-70 hover:opacity-100">
+                            {showSchedSettings ? 'Hide Settings' : 'Settings'}
+                        </button>
+                    </div>
+
+                    {showSchedSettings && (
+                        <div className="bg-slate-950/50 p-2 rounded text-[10px] space-y-2 border border-slate-800">
+                            <div className="flex justify-between items-center">
+                                <span>Work Day</span>
+                                <div className="flex gap-1">
+                                    <input
+                                        type="time"
+                                        className="bg-white/10 text-slate-100 border border-slate-700 rounded px-2 py-1 w-20 text-center"
+                                        style={{ colorScheme: 'dark' }}
+                                        value={schedPrefs.workDayStart}
+                                        onChange={(e) => updateSchedPrefs({ workDayStart: e.target.value })}
+                                    />
+                                    <span className="self-center">-</span>
+                                    <input
+                                        type="time"
+                                        className="bg-white/10 text-slate-100 border border-slate-700 rounded px-2 py-1 w-20 text-center"
+                                        style={{ colorScheme: 'dark' }}
+                                        value={schedPrefs.workDayEnd}
+                                        onChange={(e) => updateSchedPrefs({ workDayEnd: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span>Lunch Start</span>
+                                <input
+                                    type="time"
+                                    className="bg-white/10 text-slate-100 border border-slate-700 rounded px-2 py-1 w-20 text-center"
+                                    style={{ colorScheme: 'dark' }}
+                                    value={schedPrefs.lunchStart}
+                                    onChange={(e) => updateSchedPrefs({ lunchStart: e.target.value })}
+                                />
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span>Lunch (mins)</span>
+                                <input
+                                    type="number"
+                                    className="bg-white/10 text-slate-100 border border-slate-700 rounded px-2 py-1 w-12 text-center"
+                                    value={schedPrefs.lunchMinutes}
+                                    onChange={(e) => updateSchedPrefs({ lunchMinutes: parseInt(e.target.value) })}
+                                />
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span>Focus (mins)</span>
+                                <input
+                                    type="number"
+                                    className="bg-white/10 text-slate-100 border border-slate-700 rounded px-2 py-1 w-12 text-center"
+                                    value={schedPrefs.focusBlockMinutes}
+                                    onChange={(e) => updateSchedPrefs({ focusBlockMinutes: parseInt(e.target.value) })}
+                                />
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span>Break (mins)</span>
+                                <input
+                                    type="number"
+                                    className="bg-white/10 text-slate-100 border border-slate-700 rounded px-2 py-1 w-12 text-center"
+                                    value={schedPrefs.breakMinutes}
+                                    onChange={(e) => updateSchedPrefs({ breakMinutes: parseInt(e.target.value) })}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {planError && (
+                        <div className="p-2 bg-rose-900/20 border border-rose-900/40 rounded text-[10px] text-rose-400">
+                            {planError}
+                        </div>
+                    )}
+
+                    {!dailyPlan || dailyPlan.blocks.length === 0 ? (
+                        <div className="text-center py-4">
+                            <p className="text-xs text-slate-400 mb-3">No plan for today.</p>
+                            <button onClick={generatePlan} className={classNames(btnBase, btnPositive, "w-full text-xs")}>Generate Today's Plan</button>
+                        </div>
+                    ) : (
+                        <div className="space-y-1 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-700">
+                            {dailyPlan.blocks.map((b, i) => (
+                                <div key={i} className={`flex items-start gap-2 p-2 rounded border text-xs ${b.type === 'focus' ? (b.status === 'done' ? 'bg-emerald-900/20 border-emerald-900/40 opacity-70' : 'bg-slate-800 border-slate-700') :
+                                    b.type === 'lunch' ? 'bg-amber-900/10 border-amber-900/20 text-amber-500' :
+                                        'bg-slate-900/50 border-transparent text-slate-500'
+                                    }`}>
+                                    <div className="flex flex-col w-14 shrink-0 font-mono text-[10px] opacity-70">
+                                        <span>{b.start}</span>
+                                        <span>{b.end}</span>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="group flex justify-between items-center relative">
+                                            <span className="truncate font-medium" title={b.taskTitle}>
+                                                {b.type === 'focus' ? (b.taskTitle || (b.taskId ? 'Unknown Task' : 'Deep Work / Free Focus')) : b.type.toUpperCase()}
+                                            </span>
+                                            {b.type !== 'lunch' && b.status !== 'done' && (
+                                                <div className="hidden group-hover:flex gap-1 absolute right-0 bg-slate-800 pl-2">
+                                                    {b.taskId && (
+                                                        <button title="Focus" onClick={() => onFocusTask(b.taskId!)} className="p-1 hover:text-indigo-400">
+                                                            🔍
+                                                        </button>
+                                                    )}
+                                                    {b.taskId && (
+                                                        <button title="Done" onClick={() => {
+                                                            if (b.taskId) {
+                                                                // 1. Try block's projectId
+                                                                if (b.projectId && onToggleStepDone) {
+                                                                    onToggleStepDone(b.projectId, b.taskId);
+                                                                } else {
+                                                                    // 2. Fallback: Search projects for this step ID
+                                                                    // This handles cases where the plan is old or projectId wasn't saved
+                                                                    const validProject = projects.find(p => p.steps.some(s => s.id === b.taskId));
+
+                                                                    if (validProject && onToggleStepDone) {
+                                                                        onToggleStepDone(validProject.id, b.taskId!);
+                                                                    } else {
+                                                                        // 3. Must be a regular task
+                                                                        onToggleTaskDone(b.taskId);
+                                                                    }
+                                                                }
+                                                            }
+                                                            // Optimistically update block status locally? 
+                                                            // We wait for sync or simple local refresh:
+                                                            const newBlocks = [...dailyPlan.blocks];
+                                                            newBlocks[i].status = 'done';
+                                                            saveDailyPlan({ ...dailyPlan, blocks: newBlocks });
+                                                        }} className="p-1 hover:text-emerald-400">
+                                                            ✅
+                                                        </button>
+                                                    )}
+                                                    <button title="Swap Task" onClick={() => handleSwapBlock(i)} className="p-1 hover:text-amber-400 text-[10px]">
+                                                        🔄
+                                                    </button>
+                                                    <button title="Clear Slot" onClick={() => handleClearBlock(i)} className="p-1 hover:text-rose-400 text-[10px]">
+                                                        ❌
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                            <div className="grid grid-cols-2 gap-2 mt-3 pt-2 border-t border-slate-800">
+                                <button onClick={generatePlan} className={classNames(btnBase, btnNeutral, "text-xs")}>Regenerate</button>
+                                <button onClick={clearPlan} className={classNames(btnBase, "bg-rose-900/20 text-rose-400 hover:bg-rose-900/30 border-rose-900/30 text-xs")}>Clear Plan</button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+
                 {/* SETTINGS */}
                 <div className="space-y-4 p-4 bg-slate-900/30 rounded-lg border border-slate-800">
                     <div className="flex items-center justify-between">
@@ -1010,8 +1659,14 @@ export const AssistantView = ({
                             <option value="natural-male">Natural Male</option>
                             <option value="scifi">Classic Sci-Fi</option>
                             <option value="hal-mode">HAL Mode</option>
+                            <option value="hal-mode">HAL Mode</option>
                             <option value="custom">Custom</option>
                         </select>
+                        {voiceSettings.preset === 'hal-mode' && (
+                            <p className="text-[10px] text-slate-500 mt-1 italic">
+                                HAL Mode is a style preset using browser voices. Not an exact replica.
+                            </p>
+                        )}
                     </div>
                     {voiceSettings.preset === 'custom' && (
                         <div>
@@ -1038,6 +1693,8 @@ export const AssistantView = ({
                     </div>
                 </div>
             </div>
+            {/* VERSION */}
+            <div className="absolute bottom-1 right-1 text-[10px] text-slate-600 opacity-50 font-mono select-none">v0.3.41</div>
         </div>
     );
 }

@@ -6,6 +6,7 @@ const { useEffect, useMemo, useState } = React as typeof React;
 import {
   collection,
   doc,
+  getDoc,
   onSnapshot,
   setDoc,
   updateDoc,
@@ -59,7 +60,12 @@ export function useProjectsState(appSettingsDefaults?: any, userId?: string) {
   const updateProjectDoc = async (projectId: ID, data: Partial<Project>) => {
     if (!userId) return;
     const ref = doc(db, 'users', userId, 'projects', projectId);
-    await updateDoc(ref, sanitizeForFirestore(data));
+    try {
+      await updateDoc(ref, sanitizeForFirestore(data));
+    } catch (e) {
+      console.error(`Project update failed: ${projectId}`, e);
+      throw e;
+    }
   };
 
   // Project CRUD operations
@@ -77,7 +83,8 @@ export function useProjectsState(appSettingsDefaults?: any, userId?: string) {
     };
 
     try {
-      await setDoc(doc(db, 'users', userId, 'projects', newId), sanitizeForFirestore(newProject));
+      const payload = sanitizeForFirestore(newProject);
+      await setDoc(doc(db, 'users', userId, 'projects', newId), payload);
     } catch (e) {
       console.error("Error adding project:", e);
       alert("Failed to add project. Check console.");
@@ -148,25 +155,42 @@ export function useProjectsState(appSettingsDefaults?: any, userId?: string) {
   }
 
   async function updateStepMeta(projectId: ID, stepId: ID, meta: Partial<Step>) {
-    const p = projects.find(x => x.id === projectId);
-    if (!p) return;
-
-    const newSteps = p.steps.map(s => s.id === stepId ? { ...s, ...meta } : s);
-    await updateProjectDoc(projectId, { steps: newSteps });
+    if (!userId) return;
+    const ref = doc(db, 'users', userId, 'projects', projectId);
+    try {
+      const snap = await getDoc(ref);
+      if (!snap.exists()) return;
+      const p = snap.data() as Project;
+      const newSteps = p.steps.map(s => s.id === stepId ? { ...s, ...meta } : s);
+      await updateDoc(ref, { steps: newSteps });
+    } catch (e) {
+      console.error("Failed to update step meta", e);
+    }
   }
 
   async function toggleStepDone(projectId: ID, stepId: ID) {
-    const p = projects.find(x => x.id === projectId);
-    if (!p) return;
-    const newSteps = p.steps.map(s => s.id === stepId ? { ...s, done: !s.done } : s);
-    await updateProjectDoc(projectId, { steps: newSteps });
+    if (!userId) return;
+    const ref = doc(db, 'users', userId, 'projects', projectId);
+    try {
+      // Fetch fresh to avoid stale cloures
+      const snap = await getDoc(ref);
+      if (!snap.exists()) return;
+      const p = snap.data() as Project;
+      const newSteps = p.steps.map(s => s.id === stepId ? { ...s, done: !s.done } : s);
+      await updateDoc(ref, { steps: newSteps });
+    } catch (e) { console.error("toggleStepDone failed", e); }
   }
 
   async function toggleStepToday(projectId: ID, stepId: ID) {
-    const p = projects.find(x => x.id === projectId);
-    if (!p) return;
-    const newSteps = p.steps.map(s => s.id === stepId ? { ...s, today: !s.today } : s);
-    await updateProjectDoc(projectId, { steps: newSteps });
+    if (!userId) return;
+    const ref = doc(db, 'users', userId, 'projects', projectId);
+    try {
+      const snap = await getDoc(ref);
+      if (!snap.exists()) return;
+      const p = snap.data() as Project;
+      const newSteps = p.steps.map(s => s.id === stepId ? { ...s, today: !s.today } : s);
+      await updateDoc(ref, { steps: newSteps });
+    } catch (e) { console.error("toggleStepToday failed", e); }
   }
 
   async function softDeleteStep(projectId: ID, stepId: ID) {

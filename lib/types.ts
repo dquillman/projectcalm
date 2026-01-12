@@ -32,7 +32,10 @@ export type Project = {
 };
 
 
-export type Task = Step & { kind?: 'task' };
+
+export type RecurrenceType = 'daily' | 'weekly' | 'monthly';
+
+export type Task = Step & { kind?: 'task'; recurrence?: RecurrenceType };
 
 export type AppSettings = {
   breathe: { inhale: number; hold1: number; exhale: number; hold2: number };

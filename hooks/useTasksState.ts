@@ -38,6 +38,7 @@ export function useTasksState(appSettingsDefaults?: any, userId?: string) {
       snapshot.forEach((doc) => {
         ts.push(doc.data() as Task);
       });
+
       setTasks(ts);
       setLoading(false);
     }, (error) => {
@@ -58,12 +59,21 @@ export function useTasksState(appSettingsDefaults?: any, userId?: string) {
   const updateTaskDoc = async (taskId: ID, data: Partial<Task>) => {
     if (!userId) return;
     const ref = doc(db, 'users', userId, 'tasks', taskId);
-    await updateDoc(ref, sanitizeForFirestore(data));
+    try {
+      await updateDoc(ref, sanitizeForFirestore(data));
+    } catch (e) {
+      console.error(`Update failed: ${taskId}`, e);
+      throw e;
+    }
   };
 
   // Task CRUD operations
   async function addTask(title?: string) {
-    if (!userId) return;
+    console.log("addTask called. UserID:", userId);
+    if (!userId) {
+      console.error("addTask abort: no userId");
+      return;
+    }
     const taskTitle = title || (window.prompt('New task title?') || '').trim();
     if (!taskTitle) return;
 
@@ -86,7 +96,8 @@ export function useTasksState(appSettingsDefaults?: any, userId?: string) {
     };
 
     try {
-      await setDoc(doc(db, 'users', userId, 'tasks', newId), sanitizeForFirestore(newTask));
+      const payload = sanitizeForFirestore(newTask);
+      await setDoc(doc(db, 'users', userId, 'tasks', newId), payload);
     } catch (e) {
       console.error("Error adding task:", e);
       alert("Failed to add task. Check console.");
@@ -100,7 +111,60 @@ export function useTasksState(appSettingsDefaults?: any, userId?: string) {
   async function toggleTaskDone(taskId: ID) {
     const t = tasks.find(x => x.id === taskId);
     if (!t) return;
-    await updateTaskDoc(taskId, { done: !t.done });
+
+    if (!t.done && t.recurrence) {
+      // Completing a recurring task -> Create next instance
+      const nextDate = new Date(); // default base
+      // If task has dueDate, use that as base? Or use Today?
+      // Logic: If overdue, maybe we want next one relative to Today.
+      // If not yet due, relative to DueDate?
+      // Simple V1: Relative to TODAY (completion date) ensures we don't stack up backlogs.
+      // BUT if I do Monday's task on Tuesday, do I want next one on Next Monday or Next Tuesday?
+      // Standard is "Next from Scheduled" (Streak) or "Next from Done" (Habit).
+      // Let's go with "Next from Done" for now as it's safer for "catch up", or maybe "Next from DueDate" if present.
+      // Let's match typical simpler apps: Next from TODAY if it's a simple repeater.
+      // actually, if I have "Weekly on Friday", and I do it Saturday, I want next Friday.
+      // So if dueDate exists, increment DueDate. Else increment Today.
+
+      let baseDate = t.dueDate ? new Date(t.dueDate) : new Date();
+      if (isNaN(baseDate.getTime())) baseDate = new Date();
+
+      if (t.recurrence === 'daily') {
+        baseDate.setDate(baseDate.getDate() + 1);
+      } else if (t.recurrence === 'weekly') {
+        baseDate.setDate(baseDate.getDate() + 7);
+      } else if (t.recurrence === 'monthly') {
+        baseDate.setMonth(baseDate.getMonth() + 1);
+      }
+
+      // Create new task
+      const newId = uid();
+      const nextTask: Task = {
+        ...t,
+        id: newId,
+        done: false,
+        today: false, // Don't default to today unless due today?
+        dueDate: baseDate.toISOString().split('T')[0], // ISO date part
+        createdAt: new Date().toISOString(),
+        deletedAt: undefined,
+        recurrence: t.recurrence, // Keep recurring
+      };
+
+      // Create next task
+      try {
+        // Add next task
+        await setDoc(doc(db, 'users', userId!, 'tasks', newId), sanitizeForFirestore(nextTask));
+        // Mark current as done
+        await updateTaskDoc(taskId, { done: true });
+        // maybe remove recurrence from completed task so it doesn't look like a repeater in history?
+        // optional.
+      } catch (e) {
+        console.error("Error creating recurring task", e);
+      }
+    } else {
+      // Normal toggle
+      await updateTaskDoc(taskId, { done: !t.done });
+    }
   }
 
   async function toggleTaskToday(taskId: ID) {

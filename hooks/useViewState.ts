@@ -1,7 +1,6 @@
 /* @jsxRuntime classic */
 /* @jsx React.createElement */
-// Use global React from UMD build
-const { useMemo, useState } = (window as any).React;
+import React, { useMemo, useState } from 'react';
 
 import type { ID, SortMode, Step, Tab, Task } from '../lib/types';
 
@@ -74,6 +73,7 @@ export function useViewState() {
     setFocusTarget,
     // Plan selection
     planSel,
+    setPlanSel,
     togglePlanKey,
     clearPlanSelection,
   };

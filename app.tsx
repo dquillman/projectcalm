@@ -3,8 +3,7 @@
 // Using global React in a standalone UMD build.
 // Defines window.ProjectCalmApp so index.html can mount it.
 
-// Grab hooks from global React injected by index.html
-const { useEffect, useMemo, useState } = (window as any).React;
+import React, { useEffect, useMemo, useState } from 'react';
 
 import type { ID, Project, SortMode, Step, Tab } from './lib/types';
 import { useTheme } from './hooks/useTheme';
@@ -37,12 +36,30 @@ export function ProjectCalmApp() {
   // Auth state
   const { user, loading: authLoading, signInWithGoogle, logout } = useAuth();
 
+
+
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
 
   // Storage error handling
   const [storageError, setStorageError] = useState<string | null>(null);
   const [storageQuota, setStorageQuota] = useState<{ used: number; available: number; percentage: number } | null>(null);
+
+  // View state (must be initialized before useEffect calls setView)
+  const viewState = useViewState();
+  const {
+    view, setView,
+    tab, setTab,
+    sortMode, setSortMode,
+    showSettings, setShowSettings,
+    showBreathe, setShowBreathe,
+    showPlan, setShowPlan,
+    planSel, setPlanSel,
+    togglePlanKey, clearPlanSelection,
+    editingStep, setEditingStep,
+    editingTaskId, setEditingTaskId,
+    focusTarget, setFocusTarget
+  } = viewState;
 
   // Set up storage error callback
   useEffect(() => {
@@ -58,11 +75,23 @@ export function ProjectCalmApp() {
       }
     });
 
-    // Handle deep links
+    // Handle deep links logic (now safe because setView is defined)
     if (window.location.pathname === '/assistant') {
       setView('assistant');
     }
   }, []);
+
+  // URL Synchronization
+  useEffect(() => {
+    if (view === 'assistant') {
+      window.history.replaceState(null, '', '/assistant');
+    } else {
+      // If we are not in assistant view, but URL says /assistant, revert to /
+      if (window.location.pathname === '/assistant') {
+        window.history.replaceState(null, '', '/');
+      }
+    }
+  }, [view]);
 
   // Theme
   const [theme, setTheme] = useTheme();
@@ -81,31 +110,7 @@ export function ProjectCalmApp() {
   const isLoading = authLoading || settingsLoading || projectsLoading || tasksLoading;
 
 
-  // View state
-  const viewState = useViewState();
-  const {
-    view,
-    setView,
-    tab,
-    setTab,
-    sortMode,
-    setSortMode,
-    showSettings,
-    setShowSettings,
-    showBreathe,
-    setShowBreathe,
-    showPlan,
-    setShowPlan,
-    editingStep,
-    setEditingStep,
-    editingTaskId,
-    setEditingTaskId,
-    focusTarget,
-    setFocusTarget,
-    planSel,
-    togglePlanKey,
-    clearPlanSelection,
-  } = viewState;
+
 
   // Import/Export
   const importExportHook = useImportExport({
@@ -499,7 +504,7 @@ export function ProjectCalmApp() {
 
         {/* Main Content Card */}
         <div className={classNames(cardBase, cardTone)}>
-          <div className="p-3 flex items-center justify-between border-b border-slate-700/40">
+          <div className="p-3 flex items-center justify-between border-b border-slate-700/40" style={{ display: view === 'assistant' ? 'none' : 'flex' }}>
             <div className="flex items-center gap-2">
               {(['all', 'today', 'plan', 'done', 'trash'] as Tab[]).map((t) => (
                 <button
@@ -612,7 +617,7 @@ export function ProjectCalmApp() {
                 onRestore={tasksHook.restoreTask}
                 onPurge={tasksHook.purgeTask}
               />
-            ) : (
+            ) : view === 'assistant' ? (
               <AssistantView
                 tasks={tasks}
                 projects={projects}
@@ -624,8 +629,9 @@ export function ProjectCalmApp() {
                   setFocusTarget({ kind: 'task', id: taskId });
                   setView('focus');
                 }}
+                onToggleStepDone={projectsHook.toggleStepDone}
               />
-            )}
+            ) : null}
           </div>
         </div>
 

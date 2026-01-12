@@ -2,6 +2,21 @@ const fs = require('fs');
 const path = require('path');
 const esbuild = require('esbuild');
 
+// Plugin to alias 'react' -> window.React (preventing double-bundling)
+const reactShimPlugin = {
+  name: 'react-shim',
+  setup(build) {
+    build.onResolve({ filter: /^react$/ }, args => ({
+      path: 'react',
+      namespace: 'react-shim'
+    }));
+    build.onLoad({ filter: /.*/, namespace: 'react-shim' }, () => ({
+      contents: 'module.exports = window.React;',
+      loader: 'js'
+    }));
+  }
+};
+
 async function buildBundle({ watch = false } = {}) {
   const outdir = path.resolve('dist');
   if (!fs.existsSync(outdir)) fs.mkdirSync(outdir);
@@ -17,6 +32,7 @@ async function buildBundle({ watch = false } = {}) {
     minify: true,
     sourcemap: false,
     logLevel: 'info',
+    plugins: [reactShimPlugin],
   };
 
   if (watch) {
@@ -85,6 +101,12 @@ function produceIndexHtml() {
   const appIco = path.resolve('app.ico');
   if (fs.existsSync(appIco)) {
     fs.copyFileSync(appIco, path.join(outdir, 'app.ico'));
+  }
+
+  // FORCE COPY SPICOLI TO DIST ROOT
+  const spicoliSrc = path.resolve('vendor/spicoli.png');
+  if (fs.existsSync(spicoliSrc)) {
+    fs.copyFileSync(spicoliSrc, path.join(outdir, 'spicoli.png'));
   }
 
   fs.writeFileSync(path.join(outdir, 'index.html'), html, 'utf8');
